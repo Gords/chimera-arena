@@ -21,10 +21,35 @@ export type PassiveTrigger =
   | 'on_kill'
   | 'always';
 
+// ---- Game Event (replaces socket emissions) ----
+
+export type GameEventType =
+  | 'phase_change'
+  | 'card_played'
+  | 'turn_change'
+  | 'chimera_revealed'
+  | 'error'
+  | 'player_joined'
+  | 'player_left'
+  | 'player_ready'
+  | 'battle_result'
+  | 'build_part_updated'
+  | 'chimera_accepted'
+  | 'generating'
+  | 'frozen_skip';
+
+export interface GameEvent {
+  id: number;
+  type: GameEventType;
+  team?: Team;
+  data: any;
+  timestamp: number;
+}
+
 // ---- Player ----
 
 export interface Player {
-  id: string; // socket ID
+  id: string; // UUID (generated on create/join)
   name: string;
   team: Team | null;
   ready: boolean;
@@ -130,17 +155,20 @@ export type BuildSlot = keyof BuildParts;
 
 export interface Room {
   id: string;
-  players: Map<string, Player>;
-  teams: { red: string[]; blue: string[] }; // socket IDs
+  hostId: string; // player UUID of the room creator
+  players: Map<string, Player>; // keyed by player UUID
+  teams: { red: string[]; blue: string[] }; // player UUIDs
   phase: Phase;
   round: number;
   chimeras: { red: Chimera | null; blue: Chimera | null };
   buildParts: { red: Partial<BuildParts>; blue: Partial<BuildParts> };
   battleState: BattleState | null;
   accepted: { red: boolean; blue: boolean };
+  events: GameEvent[];
+  lastUpdated: number; // Date.now() timestamp
 }
 
-// ---- Serialized Room (for socket emission) ----
+// ---- Serialized Room (for REST responses) ----
 
 export interface SerializedPlayer {
   id: string;
@@ -151,6 +179,7 @@ export interface SerializedPlayer {
 
 export interface SerializedRoom {
   id: string;
+  hostId: string;
   players: Record<string, SerializedPlayer>;
   teams: { red: string[]; blue: string[] };
   phase: Phase;
@@ -159,4 +188,6 @@ export interface SerializedRoom {
   buildParts: { red: Partial<BuildParts>; blue: Partial<BuildParts> };
   battleState: BattleState | null;
   accepted: { red: boolean; blue: boolean };
+  events: GameEvent[];
+  lastUpdated: number;
 }

@@ -2,7 +2,6 @@
 // Chimera Arena - Game Phase Manager
 // ============================================================
 
-import type { Server } from 'socket.io';
 import type {
   Room,
   Team,
@@ -15,7 +14,7 @@ import type {
   BuildSlot,
   StatusEffect,
 } from './types.js';
-import { serializeRoom } from './Room.js';
+import { addEvent } from './Room.js';
 
 // ----- Constants -----
 
@@ -39,7 +38,7 @@ function clearPhaseTimer(roomId: string): void {
 // ============================================================
 
 import { generateFullChimera } from './ai/generateChimera.js';
-import type { BuildParts } from './types.js'; // BuildParts for AI call
+import type { BuildParts } from './types.js';
 
 const USE_AI = !!process.env.GEMINI_API_KEY;
 
@@ -89,16 +88,8 @@ function createFallbackChimera(parts: BuildParts): Chimera {
 // ============================================================
 
 export class GameManager {
-  private io: Server;
-
-  constructor(io: Server) {
-    this.io = io;
-  }
-
-  // ----- Broadcast helper -----
-
-  private broadcastRoomState(room: Room): void {
-    this.io.to(room.id).emit('room:state', serializeRoom(room));
+  constructor() {
+    // No dependencies -- all communication is through the room's event log
   }
 
   // ============================================================
@@ -113,8 +104,8 @@ export class GameManager {
     room.chimeras = { red: null, blue: null };
     room.accepted = { red: false, blue: false };
 
-    this.broadcastRoomState(room);
-    this.io.to(room.id).emit('phase:build', {
+    addEvent(room, 'phase_change', {
+      phase: 'build',
       duration: BUILD_PHASE_DURATION,
     });
 
@@ -147,8 +138,7 @@ export class GameManager {
 
     room.buildParts[team][slot] = description.trim();
 
-    this.broadcastRoomState(room);
-    this.io.to(room.id).emit('build:part_updated', { team, slot });
+    addEvent(room, 'build_part_updated', { team, slot });
 
     return true;
   }
@@ -165,7 +155,7 @@ export class GameManager {
     room.phase = 'reveal';
     room.accepted = { red: false, blue: false };
 
-    this.io.to(room.id).emit('phase:generating', {
+    addEvent(room, 'generating', {
       message: 'AI is generating your chimeras...',
     });
 
@@ -178,8 +168,8 @@ export class GameManager {
     room.chimeras.red = redChimera;
     room.chimeras.blue = blueChimera;
 
-    this.broadcastRoomState(room);
-    this.io.to(room.id).emit('phase:reveal', {
+    addEvent(room, 'chimera_revealed', {
+      phase: 'reveal',
       red: redChimera,
       blue: blueChimera,
     });
@@ -194,8 +184,7 @@ export class GameManager {
 
     room.accepted[team] = true;
 
-    this.broadcastRoomState(room);
-    this.io.to(room.id).emit('reveal:accepted', { team });
+    addEvent(room, 'chimera_accepted', { team }, team);
 
     // If both teams accepted, proceed to battle
     if (room.accepted.red && room.accepted.blue) {
@@ -224,8 +213,10 @@ export class GameManager {
 
     room.battleState = battleState;
 
-    this.broadcastRoomState(room);
-    this.io.to(room.id).emit('phase:battle', { battleState });
+    addEvent(room, 'phase_change', {
+      phase: 'battle',
+      battleState,
+    });
 
     this.startTurnTimer(room);
   }
@@ -253,28 +244,28 @@ export class GameManager {
 
     // Check cooldown
     if (attacker.cooldowns[cardId] && attacker.cooldowns[cardId] > 0) {
-      this.io.to(room.id).emit('battle:error', {
+      addEvent(room, 'error', {
         team,
         message: `${card.name} is on cooldown for ${attacker.cooldowns[cardId]} more turn(s).`,
-      });
+      }, team);
       return false;
     }
 
     // Check mana
     if (attacker.mana < card.manaCost) {
-      this.io.to(room.id).emit('battle:error', {
+      addEvent(room, 'error', {
         team,
         message: `Not enough mana. Need ${card.manaCost}, have ${attacker.mana}.`,
-      });
+      }, team);
       return false;
     }
 
-    // Check frozen/stun — skip action
+    // Check frozen/stun -- skip action
     if (isStunned(attacker)) {
-      this.io.to(room.id).emit('battle:error', {
+      addEvent(room, 'error', {
         team,
         message: 'Your chimera is stunned and cannot act!',
-      });
+      }, team);
       return false;
     }
 
@@ -298,12 +289,11 @@ export class GameManager {
     };
     bs.log.push(logEntry);
 
-    this.broadcastRoomState(room);
-    this.io.to(room.id).emit('battle:card_played', {
+    addEvent(room, 'card_played', {
       team,
       card,
       result,
-    });
+    }, team);
 
     // Check win condition
     if (defender.hp <= 0) {
@@ -316,7 +306,7 @@ export class GameManager {
       return true;
     }
 
-    // 1 attack per turn — auto-end turn after playing a card
+    // 1 attack per turn -- auto-end turn after playing a card
     this.endTurn(room, team);
 
     return true;
@@ -373,8 +363,7 @@ export class GameManager {
 
     bs.turnTimer = TURN_TIMER_DURATION;
 
-    this.broadcastRoomState(room);
-    this.io.to(room.id).emit('battle:turn', {
+    addEvent(room, 'turn_change', {
       activeTeam: nextTeam,
       turn: bs.turn,
       frozenSkip: bs.frozenSkip,
@@ -403,8 +392,7 @@ export class GameManager {
 
     room.phase = 'result';
 
-    this.broadcastRoomState(room);
-    this.io.to(room.id).emit('phase:result', {
+    addEvent(room, 'battle_result', {
       winner,
       battleLog: room.battleState?.log ?? [],
     });
@@ -432,8 +420,10 @@ export class GameManager {
 
     clearPhaseTimer(room.id);
 
-    this.broadcastRoomState(room);
-    this.io.to(room.id).emit('phase:lobby', { round: room.round });
+    addEvent(room, 'phase_change', {
+      phase: 'lobby',
+      round: room.round,
+    });
   }
 
   // ============================================================

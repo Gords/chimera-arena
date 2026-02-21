@@ -4,7 +4,6 @@
 // ============================================================
 
 import React from 'react';
-import { SocketProvider, useSocket } from './context/SocketContext';
 import { GameProvider, useGame } from './context/GameContext';
 import Lobby from './ui/Lobby';
 import WaitingRoom from './ui/WaitingRoom';
@@ -16,24 +15,10 @@ import ResultScreen from './ui/ResultScreen';
 // ---- Inner router (needs context access) ----
 
 function GameRouter() {
-  const { connected } = useSocket();
-  const { room, phase, error, clearError } = useGame();
+  const { room, phase, error, clearError, connected } = useGame();
 
-  // Connection overlay
-  if (!connected) {
-    return (
-      <div className="screen-container">
-        <div className="panel" style={{ textAlign: 'center' }}>
-          <h2 style={{ color: 'var(--accent-cyan)', marginBottom: 12 }}>
-            CONNECTING...
-          </h2>
-          <p style={{ fontSize: 8, color: 'var(--text-secondary)' }}>
-            Establishing link to the arena server
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // Not yet in a room and not connected -> show lobby immediately
+  // (no connection overlay needed for REST; the lobby handles its own state)
 
   // Phase routing
   const renderScreen = () => {
@@ -94,10 +79,8 @@ function GameRouter() {
 
 export default function App() {
   return (
-    <SocketProvider>
-      <GameProvider>
-        <GameRouter />
-      </GameProvider>
-    </SocketProvider>
+    <GameProvider>
+      <GameRouter />
+    </GameProvider>
   );
 }
