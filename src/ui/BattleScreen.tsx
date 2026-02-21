@@ -152,19 +152,18 @@ export default function BattleScreen() {
           <div
             style={{
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 60,
+              alignItems: 'flex-end',
+              justifyContent: 'space-around',
               width: '100%',
               height: '100%',
-              minHeight: 300,
+              minHeight: 420,
               background:
                 'linear-gradient(180deg, #0a0a20 0%, #1a1a3e 50%, #0f2020 100%)',
-              padding: 20,
+              padding: '20px 40px',
             }}
           >
             {/* Your chimera sprite */}
-            <div style={{ textAlign: 'center' }}>
+            <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
               {myChimera.sprite ? (
                 <img
                   src={
@@ -174,8 +173,9 @@ export default function BattleScreen() {
                   }
                   alt={myChimera.name}
                   style={{
-                    width: 128,
-                    height: 128,
+                    maxHeight: '80%',
+                    maxWidth: '100%',
+                    objectFit: 'contain',
                     imageRendering: 'pixelated',
                     animation: 'float 3s ease-in-out infinite',
                   }}
@@ -216,13 +216,16 @@ export default function BattleScreen() {
                 fontSize: 16,
                 color: 'var(--accent-gold)',
                 textShadow: '0 0 10px rgba(255, 215, 0, 0.5)',
+                alignSelf: 'center',
+                flexShrink: 0,
+                padding: '0 10px',
               }}
             >
               VS
             </div>
 
             {/* Enemy chimera sprite */}
-            <div style={{ textAlign: 'center' }}>
+            <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
               {enemyChimera.sprite ? (
                 <img
                   src={
@@ -232,8 +235,9 @@ export default function BattleScreen() {
                   }
                   alt={enemyChimera.name}
                   style={{
-                    width: 128,
-                    height: 128,
+                    maxHeight: '80%',
+                    maxWidth: '100%',
+                    objectFit: 'contain',
                     imageRendering: 'pixelated',
                     animation: 'float 3s ease-in-out infinite',
                     animationDelay: '1.5s',
