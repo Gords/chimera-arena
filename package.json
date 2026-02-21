@@ -6,7 +6,8 @@
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "vite",
     "dev:server": "tsx watch --env-file=.env server/index.ts",
-    "build": "vite build && tsc -p tsconfig.server.json"
+    "build": "vite build && tsc -p tsconfig.server.json",
+    "start": "node dist/server/index.js"
   },
   "dependencies": {
     "@google/genai": "^1.42.0",
