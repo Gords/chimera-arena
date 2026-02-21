@@ -139,6 +139,7 @@ export interface Room {
   buildParts: { red: Partial<BuildParts>; blue: Partial<BuildParts> };
   battleState: BattleState | null;
   accepted: { red: boolean; blue: boolean };
+  battleBackground: string;
 }
 
 // ---- Serialized Room (for socket emission) ----
@@ -160,4 +161,5 @@ export interface SerializedRoom {
   buildParts: { red: Partial<BuildParts>; blue: Partial<BuildParts> };
   battleState: BattleState | null;
   accepted: { red: boolean; blue: boolean };
+  battleBackground: string;
 }

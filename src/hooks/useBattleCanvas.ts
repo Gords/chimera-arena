@@ -11,18 +11,20 @@ import { BattleController } from '../game/BattleController.js';
 import type { Socket } from 'socket.io-client';
 import type { Team, Chimera, AbilityCard, CardResult } from '../types.js';
 
-const ARENA_BACKGROUNDS = ['volcanic', 'crystal', 'sky', 'forest', 'cyber'] as const;
-
 export function useBattleCanvas(
   containerRef: React.RefObject<HTMLDivElement | null>,
   socket: Socket | null,
   myTeam: Team | null,
   myChimera: Chimera | null,
   enemyChimera: Chimera | null,
+  battleBackground?: string,
 ): void {
   const stageRef = useRef<ArenaStage | null>(null);
   const controllerRef = useRef<BattleController | null>(null);
   const readyRef = useRef(false);
+  // Store background in a ref so changes don't recreate the stage
+  const bgRef = useRef(battleBackground);
+  bgRef.current = battleBackground;
 
   // --- Mount PixiJS stage and load chimera sprites ---
   useEffect(() => {
@@ -45,10 +47,8 @@ export function useBattleCanvas(
     stageRef.current = stage;
 
     stage.init(canvas).then(async () => {
-      // Random arena background
-      const bgType =
-        ARENA_BACKGROUNDS[Math.floor(Math.random() * ARENA_BACKGROUNDS.length)];
-      stage.setArenaBackground(bgType);
+      // Use the ref so we get the latest background value
+      await stage.setArenaBackground(bgRef.current);
 
       // Load chimera sprites (empty string handled gracefully by PixiJS)
       if (myChimera.sprite && enemyChimera.sprite) {
@@ -59,6 +59,8 @@ export function useBattleCanvas(
       const animator = new BattleAnimator(stage);
       controllerRef.current = new BattleController(stage, animator, myTeam);
       readyRef.current = true;
+    }).catch((err) => {
+      console.error('[useBattleCanvas] Stage init failed:', err);
     });
 
     // Resize handler
@@ -78,6 +80,12 @@ export function useBattleCanvas(
       stageRef.current = null;
     };
   }, [myTeam, myChimera, enemyChimera]);
+
+  // --- Update background without recreating the stage ---
+  useEffect(() => {
+    if (!battleBackground || !stageRef.current || !readyRef.current) return;
+    stageRef.current.setArenaBackground(battleBackground);
+  }, [battleBackground]);
 
   // --- Listen for battle:card_played events ---
   useEffect(() => {

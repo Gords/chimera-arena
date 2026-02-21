@@ -42,6 +42,7 @@ export function serializeRoom(room: Room): SerializedRoom {
     },
     battleState: room.battleState ? { ...room.battleState } : null,
     accepted: { ...room.accepted },
+    battleBackground: room.battleBackground,
   };
 }
 
@@ -75,6 +76,7 @@ function makeRoom(id: string): Room {
     buildParts: { red: {}, blue: {} },
     battleState: null,
     accepted: { red: false, blue: false },
+    battleBackground: '',
   };
 }
 

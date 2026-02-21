@@ -140,4 +140,5 @@ export interface SerializedRoom {
   buildParts: { red: Partial<BuildParts>; blue: Partial<BuildParts> };
   battleState: BattleState | null;
   accepted: { red: boolean; blue: boolean };
+  battleBackground: string;
 }

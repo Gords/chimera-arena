@@ -32,7 +32,8 @@ export default function BattleScreen() {
   const enemyChimera: Chimera | null = chimeras?.[enemyTeam] ?? null;
 
   // Mount PixiJS battle canvas with attack sprite animations
-  useBattleCanvas(canvasRef, socket, myTeam, myChimera, enemyChimera);
+  const battleBackground = room?.battleBackground ?? '';
+  useBattleCanvas(canvasRef, socket, myTeam, myChimera, enemyChimera, battleBackground);
 
   const myBattleState: ChimeraBattleState | null = useMemo(() => {
     if (!battleState || !myTeam) return null;
@@ -156,7 +157,7 @@ export default function BattleScreen() {
         <div
           id="battle-canvas"
           ref={canvasRef}
-          style={{ width: '100%', height: '100%', minHeight: 320 }}
+          style={{ width: '100%', height: '100%' }}
         />
       </div>
 

@@ -39,6 +39,7 @@ function clearPhaseTimer(roomId: string): void {
 // ============================================================
 
 import { generateFullChimera } from './ai/generateChimera.js';
+import { generateBattleBackground } from './ai/battleBackgroundGenerator.js';
 import type { BuildParts } from './types.js'; // BuildParts for AI call
 
 const USE_AI = !!process.env.GEMINI_API_KEY;
@@ -179,14 +180,33 @@ export class GameManager {
       message: 'AI is generating your chimeras...',
     });
 
-    // Generate both chimeras in parallel
-    const [redChimera, blueChimera] = await Promise.all([
+    // Random scene description for the battle background
+    const sceneDescriptions = [
+      'A volcanic cave with rivers of lava and crumbling stone pillars',
+      'A crystal cavern with glowing blue and purple crystal formations',
+      'A floating sky temple above the clouds with ancient stone columns',
+      'A dark enchanted forest with twisted trees and mystical fog',
+      'A cyber grid arena with neon purple lines and digital particles',
+      'An ancient colosseum with crumbling marble walls under a stormy sky',
+      'A frozen tundra with ice crystals and aurora borealis in the sky',
+      'A desert temple with golden sand dunes and mysterious ruins',
+    ];
+    const scenePrompt = sceneDescriptions[Math.floor(Math.random() * sceneDescriptions.length)];
+
+    // Generate both chimeras AND the battle background in parallel
+    const [redChimera, blueChimera, bgResult] = await Promise.all([
       generateChimera(room.buildParts.red, 'red'),
       generateChimera(room.buildParts.blue, 'blue'),
+      USE_AI
+        ? generateBattleBackground(scenePrompt)
+        : Promise.resolve({ base64: '', mimeType: 'image/png' }),
     ]);
 
     room.chimeras.red = redChimera;
     room.chimeras.blue = blueChimera;
+    room.battleBackground = bgResult.base64
+      ? `data:${bgResult.mimeType};base64,${bgResult.base64}`
+      : '';
 
     this.broadcastRoomState(room);
     this.io.to(room.id).emit('phase:reveal', {
@@ -434,6 +454,7 @@ export class GameManager {
     room.buildParts = { red: {}, blue: {} };
     room.battleState = null;
     room.accepted = { red: false, blue: false };
+    room.battleBackground = '';
 
     // Reset all players' ready state
     for (const player of room.players.values()) {

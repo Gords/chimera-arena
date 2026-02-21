@@ -20,7 +20,8 @@ export default defineConfig({
       "localhost",
       "ape-allowing-lightly.ngrok-free.app",
       "e992-2a00-79e1-2000-3101-892-4a7b-3262-f60f.ngrok-free.app",
-      "5ce2-2a00-79e1-2000-3101-9974-9673-cc4-7960.ngrok-free.app"
+      "5ce2-2a00-79e1-2000-3101-9974-9673-cc4-7960.ngrok-free.app",
+      "82a7-2a00-79e1-2000-3101-9974-9673-cc4-7960.ngrok-free.app"
     ],
   },
 });

@@ -1,5 +1,4 @@
 import * as PIXI from 'pixi.js';
-import gsap from 'gsap';
 import { ChimeraSprite } from './ChimeraSprite.js';
 
 export class ArenaStage {
@@ -10,7 +9,6 @@ export class ArenaStage {
   private uiContainer: PIXI.Container;
   private playerSprite: ChimeraSprite | null = null;
   private enemySprite: ChimeraSprite | null = null;
-  private bgAnimTweens: Array<gsap.core.Tween> = [];
 
   constructor() {
     this.app = new PIXI.Application();
@@ -42,301 +40,47 @@ export class ArenaStage {
   }
 
   /**
-   * Create a procedural pixel-art arena background using PIXI.Graphics.
-   * Each type uses different colors and simple geometric patterns.
+   * Set the arena background from an AI-generated base64 image.
+   * Falls back to a simple dark background if no image is provided.
    */
-  setArenaBackground(
-    type: 'volcanic' | 'crystal' | 'sky' | 'forest' | 'cyber'
-  ): void {
-    // Clean up previous background
+  async setArenaBackground(base64Image?: string): Promise<void> {
     this.arenaContainer.removeChildren();
-    this.bgAnimTweens.forEach((t) => t.kill());
-    this.bgAnimTweens = [];
 
     const w = this.app.screen.width;
     const h = this.app.screen.height;
 
-    switch (type) {
-      case 'volcanic':
-        this._drawVolcanic(w, h);
-        break;
-      case 'crystal':
-        this._drawCrystal(w, h);
-        break;
-      case 'sky':
-        this._drawSky(w, h);
-        break;
-      case 'forest':
-        this._drawForest(w, h);
-        break;
-      case 'cyber':
-        this._drawCyber(w, h);
-        break;
+    if (base64Image) {
+      try {
+        const texture = await this._base64ToTexture(base64Image);
+        const bgSprite = new PIXI.Sprite(texture);
+
+        // Scale to cover the full canvas (like CSS background-size: cover)
+        const scaleX = w / texture.width;
+        const scaleY = h / texture.height;
+        const scale = Math.max(scaleX, scaleY);
+        bgSprite.scale.set(scale);
+
+        // Center the sprite
+        bgSprite.x = (w - texture.width * scale) / 2;
+        bgSprite.y = (h - texture.height * scale) / 2;
+
+        this.arenaContainer.addChild(bgSprite);
+        return;
+      } catch (err) {
+        console.warn('[ArenaStage] Failed to load background image, using fallback', err);
+      }
     }
 
-    // Ground platform line
+    // Fallback: simple dark background
+    const bg = new PIXI.Graphics();
+    bg.rect(0, 0, w, h);
+    bg.fill({ color: 0x1a1a2e });
+    this.arenaContainer.addChild(bg);
+
     const ground = new PIXI.Graphics();
     ground.rect(0, h * 0.75, w, 2);
     ground.fill({ color: 0x444466 });
     this.arenaContainer.addChild(ground);
-  }
-
-  // ---------- Background Generators ----------
-
-  private _drawVolcanic(w: number, h: number): void {
-    // Dark red / dark background
-    const bg = new PIXI.Graphics();
-    bg.rect(0, 0, w, h);
-    bg.fill({ color: 0x1a0808 });
-    this.arenaContainer.addChild(bg);
-
-    // Stone floor
-    const floor = new PIXI.Graphics();
-    floor.rect(0, h * 0.75, w, h * 0.25);
-    floor.fill({ color: 0x2a1a1a });
-    this.arenaContainer.addChild(floor);
-
-    // Lava pools with flicker
-    for (let i = 0; i < 3; i++) {
-      const lava = new PIXI.Graphics();
-      const lx = w * (0.15 + i * 0.3) + (Math.random() - 0.5) * 40;
-      const ly = h * 0.82 + Math.random() * 30;
-      const lw = 30 + Math.random() * 50;
-      const lh = 8 + Math.random() * 6;
-      lava.ellipse(lx, ly, lw, lh);
-      lava.fill({ color: 0xff6600 });
-      this.arenaContainer.addChild(lava);
-
-      const tween = gsap.to(lava, {
-        alpha: 0.5 + Math.random() * 0.3,
-        duration: 0.3 + Math.random() * 0.5,
-        yoyo: true,
-        repeat: -1,
-        ease: 'sine.inOut',
-      });
-      this.bgAnimTweens.push(tween);
-    }
-
-    // Stone pillars
-    for (let i = 0; i < 2; i++) {
-      const pillar = new PIXI.Graphics();
-      const px = w * (0.1 + i * 0.8);
-      const pw = 20 + Math.random() * 15;
-      const ph = 80 + Math.random() * 60;
-      pillar.rect(px - pw / 2, h * 0.75 - ph, pw, ph);
-      pillar.fill({ color: 0x3d2222 });
-      // Pillar highlight edge
-      pillar.rect(px - pw / 2, h * 0.75 - ph, 4, ph);
-      pillar.fill({ color: 0x5a3333 });
-      this.arenaContainer.addChild(pillar);
-    }
-  }
-
-  private _drawCrystal(w: number, h: number): void {
-    // Deep blue background
-    const bg = new PIXI.Graphics();
-    bg.rect(0, 0, w, h);
-    bg.fill({ color: 0x0a0a2e });
-    this.arenaContainer.addChild(bg);
-
-    // Crystal floor
-    const floor = new PIXI.Graphics();
-    floor.rect(0, h * 0.75, w, h * 0.25);
-    floor.fill({ color: 0x112244 });
-    this.arenaContainer.addChild(floor);
-
-    // Crystal formations (diamond shapes)
-    const crystalColors = [0x4488cc, 0x66aaff, 0x88ccff];
-    for (let i = 0; i < 5; i++) {
-      const crystal = new PIXI.Graphics();
-      const cx = w * (0.1 + Math.random() * 0.8);
-      const cy = h * 0.45 + Math.random() * (h * 0.3);
-      const cSize = 10 + Math.random() * 25;
-
-      crystal.moveTo(cx, cy - cSize);
-      crystal.lineTo(cx + cSize * 0.5, cy);
-      crystal.lineTo(cx, cy + cSize * 0.5);
-      crystal.lineTo(cx - cSize * 0.5, cy);
-      crystal.closePath();
-      crystal.fill({ color: crystalColors[i % 3] });
-      this.arenaContainer.addChild(crystal);
-
-      // Sparkle / glow animation
-      const tween = gsap.to(crystal, {
-        alpha: 0.4 + Math.random() * 0.3,
-        duration: 0.8 + Math.random() * 1.2,
-        yoyo: true,
-        repeat: -1,
-        ease: 'sine.inOut',
-        delay: Math.random() * 2,
-      });
-      this.bgAnimTweens.push(tween);
-    }
-  }
-
-  private _drawSky(w: number, h: number): void {
-    // Light blue top, slightly darker lower
-    const bg = new PIXI.Graphics();
-    bg.rect(0, 0, w, h * 0.5);
-    bg.fill({ color: 0x6688cc });
-    bg.rect(0, h * 0.5, w, h * 0.25);
-    bg.fill({ color: 0x8899bb });
-    this.arenaContainer.addChild(bg);
-
-    // Platform / floor
-    const floor = new PIXI.Graphics();
-    floor.rect(0, h * 0.75, w, h * 0.25);
-    floor.fill({ color: 0xccbbaa });
-    this.arenaContainer.addChild(floor);
-
-    // Clouds with gentle drift
-    for (let i = 0; i < 4; i++) {
-      const cloud = new PIXI.Graphics();
-      const cx = w * (0.1 + i * 0.25);
-      const cy = h * (0.1 + Math.random() * 0.25);
-      cloud.ellipse(cx, cy, 40 + Math.random() * 30, 12 + Math.random() * 8);
-      cloud.fill({ color: 0xffffff });
-      cloud.alpha = 0.6 + Math.random() * 0.3;
-      this.arenaContainer.addChild(cloud);
-
-      const tween = gsap.to(cloud, {
-        x: '+=20',
-        duration: 4 + Math.random() * 3,
-        yoyo: true,
-        repeat: -1,
-        ease: 'sine.inOut',
-      });
-      this.bgAnimTweens.push(tween);
-    }
-
-    // Ancient pillar columns
-    for (let i = 0; i < 3; i++) {
-      const pillar = new PIXI.Graphics();
-      const px = w * (0.15 + i * 0.35);
-      const pw = 16;
-      const ph = 100 + Math.random() * 40;
-      pillar.rect(px - pw / 2, h * 0.75 - ph, pw, ph);
-      pillar.fill({ color: 0x998877 });
-      // Column capital (top block)
-      pillar.rect(px - pw, h * 0.75 - ph - 6, pw * 2, 6);
-      pillar.fill({ color: 0xaa9988 });
-      this.arenaContainer.addChild(pillar);
-    }
-  }
-
-  private _drawForest(w: number, h: number): void {
-    // Dark green background
-    const bg = new PIXI.Graphics();
-    bg.rect(0, 0, w, h);
-    bg.fill({ color: 0x0a1a0a });
-    this.arenaContainer.addChild(bg);
-
-    // Forest floor
-    const floor = new PIXI.Graphics();
-    floor.rect(0, h * 0.75, w, h * 0.25);
-    floor.fill({ color: 0x1a2a12 });
-    this.arenaContainer.addChild(floor);
-
-    // Tree trunks with canopy
-    for (let i = 0; i < 4; i++) {
-      const tree = new PIXI.Graphics();
-      const tx = w * (0.05 + i * 0.28) + (Math.random() - 0.5) * 30;
-      const tw = 14 + Math.random() * 10;
-      const th = 120 + Math.random() * 80;
-      // Trunk
-      tree.rect(tx - tw / 2, h * 0.75 - th, tw, th);
-      tree.fill({ color: 0x3d2a1a });
-      // Canopy (simple circle)
-      tree.circle(tx, h * 0.75 - th - 20, 30 + Math.random() * 20);
-      tree.fill({ color: 0x224422 });
-      this.arenaContainer.addChild(tree);
-    }
-
-    // Fog overlay with breathing animation
-    const fog = new PIXI.Graphics();
-    fog.rect(0, h * 0.4, w, h * 0.35);
-    fog.fill({ color: 0x88aa88 });
-    fog.alpha = 0.08;
-    this.arenaContainer.addChild(fog);
-
-    const fogTween = gsap.to(fog, {
-      alpha: 0.15,
-      duration: 3,
-      yoyo: true,
-      repeat: -1,
-      ease: 'sine.inOut',
-    });
-    this.bgAnimTweens.push(fogTween);
-  }
-
-  private _drawCyber(w: number, h: number): void {
-    // Dark purple background
-    const bg = new PIXI.Graphics();
-    bg.rect(0, 0, w, h);
-    bg.fill({ color: 0x0a0a1e });
-    this.arenaContainer.addChild(bg);
-
-    // Cyber floor
-    const floor = new PIXI.Graphics();
-    floor.rect(0, h * 0.75, w, h * 0.25);
-    floor.fill({ color: 0x110022 });
-    this.arenaContainer.addChild(floor);
-
-    // Neon grid lines (vertical)
-    const gridSpacingX = 60;
-    for (let i = 0; i < Math.floor(w / gridSpacingX) + 1; i++) {
-      const line = new PIXI.Graphics();
-      const lx = i * gridSpacingX;
-      line.rect(lx, h * 0.75, 1, h * 0.25);
-      line.fill({ color: 0x8844cc });
-      line.alpha = 0.3;
-      this.arenaContainer.addChild(line);
-    }
-
-    // Neon grid lines (horizontal)
-    const gridSpacingY = 30;
-    for (let i = 0; i < Math.floor((h * 0.25) / gridSpacingY) + 1; i++) {
-      const line = new PIXI.Graphics();
-      const ly = h * 0.75 + i * gridSpacingY;
-      line.rect(0, ly, w, 1);
-      line.fill({ color: 0x8844cc });
-      line.alpha = 0.3;
-      this.arenaContainer.addChild(line);
-    }
-
-    // Glowing borders (top and bottom of arena area)
-    const topBorder = new PIXI.Graphics();
-    topBorder.rect(0, h * 0.75 - 2, w, 2);
-    topBorder.fill({ color: 0xcc44ff });
-    this.arenaContainer.addChild(topBorder);
-
-    const bottomBorder = new PIXI.Graphics();
-    bottomBorder.rect(0, h - 2, w, 2);
-    bottomBorder.fill({ color: 0xcc44ff });
-    this.arenaContainer.addChild(bottomBorder);
-
-    // Side neon borders
-    const leftBorder = new PIXI.Graphics();
-    leftBorder.rect(0, 0, 2, h);
-    leftBorder.fill({ color: 0xcc44ff });
-    leftBorder.alpha = 0.5;
-    this.arenaContainer.addChild(leftBorder);
-
-    const rightBorder = new PIXI.Graphics();
-    rightBorder.rect(w - 2, 0, 2, h);
-    rightBorder.fill({ color: 0xcc44ff });
-    rightBorder.alpha = 0.5;
-    this.arenaContainer.addChild(rightBorder);
-
-    // Pulse animation on glowing borders
-    const pulseTween = gsap.to([topBorder, bottomBorder], {
-      alpha: 0.4,
-      duration: 0.8,
-      yoyo: true,
-      repeat: -1,
-      ease: 'sine.inOut',
-    });
-    this.bgAnimTweens.push(pulseTween);
   }
 
   /**
@@ -435,9 +179,6 @@ export class ArenaStage {
    * Clean up and destroy the PIXI application and all resources.
    */
   destroy(): void {
-    this.bgAnimTweens.forEach((t) => t.kill());
-    this.bgAnimTweens = [];
-
     if (this.playerSprite) {
       this.playerSprite.destroy();
       this.playerSprite = null;
