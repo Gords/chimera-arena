@@ -15,7 +15,7 @@ import type { Team, Chimera, ChimeraBattleState, StatusEffect } from '../types';
 const TURN_DURATION = 15;
 
 export default function BattleScreen() {
-  const { room, myTeam, chimeras, battleState, playCard, endTurn } = useGame();
+  const { room, myTeam, chimeras, battleState, playCard, endTurn, cardPlaying } = useGame();
 
   const [logOpen, setLogOpen] = useState(false);
   const [turnTimer, setTurnTimer] = useState(TURN_DURATION);
@@ -44,6 +44,9 @@ export default function BattleScreen() {
     return battleState?.activeTeam === myTeam;
   }, [battleState, myTeam]);
 
+  // Cards are only playable when it's our turn AND no card play is in flight
+  const canPlayCards = isMyTurn && !cardPlaying;
+
   const turnNumber = battleState?.turn ?? 1;
   const log = battleState?.log ?? [];
 
@@ -65,18 +68,18 @@ export default function BattleScreen() {
 
   const handlePlayCard = useCallback(
     (cardId: string) => {
-      if (isMyTurn) {
+      if (canPlayCards) {
         playCard(cardId);
       }
     },
-    [isMyTurn, playCard]
+    [canPlayCards, playCard]
   );
 
   const handleEndTurn = useCallback(() => {
-    if (isMyTurn) {
+    if (canPlayCards) {
       endTurn();
     }
-  }, [isMyTurn, endTurn]);
+  }, [canPlayCards, endTurn]);
 
   // ---- Guard ----
 
@@ -311,7 +314,7 @@ export default function BattleScreen() {
           <div className="end-turn-wrapper">
             <button
               className="btn btn-primary end-turn-btn"
-              disabled={!isMyTurn}
+              disabled={!canPlayCards}
               onClick={handleEndTurn}
             >
               END TURN
@@ -330,7 +333,7 @@ export default function BattleScreen() {
             cards={myChimera.cards}
             mana={myBattleState.mana}
             cooldowns={myBattleState.cooldowns}
-            isMyTurn={isMyTurn}
+            isMyTurn={canPlayCards}
             onPlayCard={handlePlayCard}
           />
         </div>

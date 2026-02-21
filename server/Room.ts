@@ -2,20 +2,77 @@
 // Chimera Arena - Room Manager
 // ============================================================
 
-import type { Room, Player, Team, SerializedRoom } from './types.js';
+import { v4 as uuidv4 } from 'uuid';
+import type { Room, Player, Team, SerializedRoom, GameEvent, GameEventType } from './types.js';
+
+// ---- Max events kept in the room ----
+const MAX_EVENTS = 50;
+
+// ---- Event counter (global, monotonically increasing per-room) ----
+const eventCounters: Map<string, number> = new Map();
+
+function nextEventId(roomId: string): number {
+  const current = eventCounters.get(roomId) || 0;
+  const next = current + 1;
+  eventCounters.set(roomId, next);
+  return next;
+}
+
+// ============================================================
+// Event helpers
+// ============================================================
+
+/**
+ * Append a game event to the room's event log.
+ * Caps the events array at the last MAX_EVENTS entries.
+ * Also updates room.lastUpdated.
+ */
+export function addEvent(
+  room: Room,
+  type: GameEventType,
+  data: any,
+  team?: Team
+): GameEvent {
+  const event: GameEvent = {
+    id: nextEventId(room.id),
+    type,
+    team,
+    data,
+    timestamp: Date.now(),
+  };
+
+  room.events.push(event);
+
+  // Keep only the last MAX_EVENTS
+  if (room.events.length > MAX_EVENTS) {
+    room.events = room.events.slice(-MAX_EVENTS);
+  }
+
+  room.lastUpdated = Date.now();
+
+  return event;
+}
 
 /**
  * Convert a Room (which uses Map for players) into a plain-object
- * representation safe for JSON / socket.io emission.
+ * representation safe for JSON responses.
+ *
+ * Optionally filter events to only those after a given eventId (for polling).
  */
-export function serializeRoom(room: Room): SerializedRoom {
+export function serializeRoom(room: Room, sinceEventId?: number): SerializedRoom {
   const players: Record<string, Player> = {};
   for (const [id, player] of room.players) {
     players[id] = { ...player };
   }
 
+  let events = room.events;
+  if (sinceEventId !== undefined && sinceEventId > 0) {
+    events = room.events.filter((e) => e.id > sinceEventId);
+  }
+
   return {
     id: room.id,
+    hostId: room.hostId,
     players,
     teams: {
       red: [...room.teams.red],
@@ -33,6 +90,8 @@ export function serializeRoom(room: Room): SerializedRoom {
     },
     battleState: room.battleState ? { ...room.battleState } : null,
     accepted: { ...room.accepted },
+    events,
+    lastUpdated: room.lastUpdated,
   };
 }
 
@@ -55,9 +114,10 @@ function generateRoomCode(existing: Map<string, Room>): string {
 /**
  * Create a fresh Room object with all fields initialised.
  */
-function makeRoom(id: string): Room {
+function makeRoom(id: string, hostId: string): Room {
   return {
     id,
+    hostId,
     players: new Map(),
     teams: { red: [], blue: [] },
     phase: 'lobby',
@@ -66,11 +126,13 @@ function makeRoom(id: string): Room {
     buildParts: { red: {}, blue: {} },
     battleState: null,
     accepted: { red: false, blue: false },
+    events: [],
+    lastUpdated: Date.now(),
   };
 }
 
 // ============================================================
-// RoomManager — singleton-style class backed by a Map
+// RoomManager -- singleton-style class backed by a Map
 // ============================================================
 
 export class RoomManager {
@@ -78,9 +140,13 @@ export class RoomManager {
 
   // ----- Creation / lookup -----
 
-  createRoom(): Room {
+  /**
+   * Create a new room. The hostId is the UUID of the player who creates it.
+   * The player is NOT automatically added -- call joinRoom after this.
+   */
+  createRoom(hostId: string): Room {
     const id = generateRoomCode(this.rooms);
-    const room = makeRoom(id);
+    const room = makeRoom(id, hostId);
     this.rooms.set(id, room);
     return room;
   }
@@ -100,16 +166,15 @@ export class RoomManager {
   // ----- Player management -----
 
   /**
-   * Add a player to the room. Automatically assigns them to the team with
-   * fewer members (red wins ties — first player always goes red).
-   * Returns the updated Room or null if the room doesn't exist.
+   * Add a player to the room. Generates a UUID for the player and assigns
+   * them to the team with fewer members (red wins ties).
+   * Returns { room, playerId } or null if room doesn't exist.
    */
-  joinRoom(roomId: string, player: Player): Room | null {
+  joinRoom(roomId: string, playerName: string): { room: Room; playerId: string } | null {
     const room = this.getRoom(roomId);
     if (!room) return null;
 
-    // Prevent duplicate joins
-    if (room.players.has(player.id)) return room;
+    const playerId = uuidv4();
 
     // Auto-assign team: prefer whichever team has fewer members
     let assignedTeam: Team;
@@ -119,11 +184,20 @@ export class RoomManager {
       assignedTeam = 'blue';
     }
 
-    player.team = assignedTeam;
-    room.players.set(player.id, player);
-    room.teams[assignedTeam].push(player.id);
+    const player: Player = {
+      id: playerId,
+      name: playerName,
+      team: assignedTeam,
+      ready: false,
+    };
 
-    return room;
+    room.players.set(playerId, player);
+    room.teams[assignedTeam].push(playerId);
+    room.lastUpdated = Date.now();
+
+    addEvent(room, 'player_joined', { playerId, playerName, team: assignedTeam });
+
+    return { room, playerId };
   }
 
   /**
@@ -131,27 +205,38 @@ export class RoomManager {
    * If the room becomes empty, it is automatically deleted.
    * Returns the updated Room, or null if the room was deleted / not found.
    */
-  leaveRoom(roomId: string, socketId: string): Room | null {
+  leaveRoom(roomId: string, playerId: string): Room | null {
     const room = this.getRoom(roomId);
     if (!room) return null;
 
-    const player = room.players.get(socketId);
+    const player = room.players.get(playerId);
     if (!player) return room;
 
     // Remove from team roster
     if (player.team) {
       const teamList = room.teams[player.team];
-      const idx = teamList.indexOf(socketId);
+      const idx = teamList.indexOf(playerId);
       if (idx !== -1) teamList.splice(idx, 1);
     }
 
-    room.players.delete(socketId);
+    room.players.delete(playerId);
 
     // Clean up empty rooms
     if (room.players.size === 0) {
       this.rooms.delete(room.id);
       return null;
     }
+
+    // If the host left, assign a new host
+    if (room.hostId === playerId) {
+      const firstPlayer = room.players.values().next().value;
+      if (firstPlayer) {
+        room.hostId = firstPlayer.id;
+      }
+    }
+
+    room.lastUpdated = Date.now();
+    addEvent(room, 'player_left', { playerId, playerName: player.name });
 
     return room;
   }
@@ -161,14 +246,22 @@ export class RoomManager {
   /**
    * Toggle the ready flag on a player. Returns the updated Room or null.
    */
-  setReady(roomId: string, socketId: string): Room | null {
+  setReady(roomId: string, playerId: string): Room | null {
     const room = this.getRoom(roomId);
     if (!room) return null;
 
-    const player = room.players.get(socketId);
+    const player = room.players.get(playerId);
     if (!player) return null;
 
     player.ready = !player.ready;
+    room.lastUpdated = Date.now();
+
+    addEvent(room, 'player_ready', {
+      playerId,
+      playerName: player.name,
+      ready: player.ready,
+    });
+
     return room;
   }
 
@@ -201,22 +294,21 @@ export class RoomManager {
   // ----- Helpers -----
 
   /**
-   * Find which room a socket is currently in (if any).
+   * Look up a player by UUID in a specific room.
    */
-  findRoomBySocket(socketId: string): Room | undefined {
-    for (const room of this.rooms.values()) {
-      if (room.players.has(socketId)) return room;
-    }
-    return undefined;
+  getPlayerById(roomId: string, playerId: string): Player | null {
+    const room = this.getRoom(roomId);
+    if (!room) return null;
+    return room.players.get(playerId) ?? null;
   }
 
   /**
-   * Get the team a socket belongs to inside a room.
+   * Get the team a player belongs to inside a room.
    */
-  getPlayerTeam(roomId: string, socketId: string): Team | null {
+  getPlayerTeam(roomId: string, playerId: string): Team | null {
     const room = this.getRoom(roomId);
     if (!room) return null;
-    const player = room.players.get(socketId);
+    const player = room.players.get(playerId);
     return player?.team ?? null;
   }
 }

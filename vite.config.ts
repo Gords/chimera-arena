@@ -11,11 +11,14 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/socket.io": {
+      "/api": {
         target: "http://localhost:3001",
-        ws: true,
       },
     },
-    allowedHosts: ["localhost", "ape-allowing-lightly.ngrok-free.app"],
+    allowedHosts: [
+      "localhost",
+      "ape-allowing-lightly.ngrok-free.app",
+      "e992-2a00-79e1-2000-3101-892-4a7b-3262-f60f.ngrok-free.app",
+    ],
   },
 });

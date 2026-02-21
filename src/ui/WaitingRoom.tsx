@@ -4,13 +4,11 @@
 // ============================================================
 
 import React, { useState, useCallback, useMemo } from 'react';
-import { useSocket } from '../context/SocketContext';
 import { useGame } from '../context/GameContext';
 import type { Player, Team } from '../types';
 
 export default function WaitingRoom() {
-  const { socket } = useSocket();
-  const { room, player, setReady, startGame } = useGame();
+  const { room, player, myTeam, setReady, startGame } = useGame();
   const [copied, setCopied] = useState(false);
 
   // ---- Derived data ----
@@ -36,10 +34,10 @@ export default function WaitingRoom() {
   );
 
   const isHost = useMemo(() => {
-    if (!room || !socket?.id) return false;
+    if (!room || !player) return false;
     // Host is the first player in the red team (room creator)
-    return room.teams.red[0] === socket.id;
-  }, [room, socket]);
+    return room.teams.red[0] === player.id;
+  }, [room, player]);
 
   // ---- Handlers ----
 
@@ -66,7 +64,7 @@ export default function WaitingRoom() {
         <li key={p.id} className="player-item">
           <span className="player-name">
             {p.name}
-            {p.id === socket?.id ? ' (YOU)' : ''}
+            {p.id === player?.id ? ' (YOU)' : ''}
           </span>
           <span className={p.ready ? 'player-ready' : 'player-not-ready'}>
             {p.ready ? 'READY' : 'NOT READY'}

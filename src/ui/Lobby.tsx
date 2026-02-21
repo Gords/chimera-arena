@@ -14,8 +14,6 @@ export default function Lobby() {
   const [mode, setMode] = useState<LobbyMode>('menu');
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
-  const [createdCode, setCreatedCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   // ---- Handlers ----
 
@@ -23,8 +21,8 @@ export default function Lobby() {
     const name = playerName.trim();
     if (!name) return;
     createRoom(name);
-    // The room code will appear once room:created fires and room is set.
-    // We stay on the same screen; WaitingRoom will render via App routing.
+    // After the REST call succeeds, polling starts automatically.
+    // The first poll will set the room state, and App.tsx will route to WaitingRoom.
   }, [playerName, createRoom]);
 
   const handleJoin = useCallback(() => {
@@ -32,16 +30,8 @@ export default function Lobby() {
     const code = roomCode.trim().toUpperCase();
     if (!name || !code) return;
     joinRoom(code, name);
+    // Same as create: polling picks up the room state after join.
   }, [playerName, roomCode, joinRoom]);
-
-  const handleCopyCode = useCallback(() => {
-    if (createdCode) {
-      navigator.clipboard.writeText(createdCode).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      });
-    }
-  }, [createdCode]);
 
   // ---- Render ----
 
@@ -89,8 +79,7 @@ export default function Lobby() {
           </>
         )}
 
-        {/* Create mode — we show this while waiting for room:created,
-            but App.tsx will swap to WaitingRoom once room is set */}
+        {/* Create mode -- shown while waiting for the REST call + first poll */}
         {mode === 'create' && (
           <div className="lobby-form animate-slide-in">
             <p
@@ -149,28 +138,6 @@ export default function Lobby() {
 
         {/* Error display */}
         {error && <p className="lobby-error">{error}</p>}
-
-        {/* Created room code display */}
-        {createdCode && (
-          <div className="animate-slide-in" style={{ width: '100%' }}>
-            <p
-              style={{
-                fontSize: 8,
-                color: 'var(--text-secondary)',
-                textAlign: 'center',
-                marginBottom: 8,
-              }}
-            >
-              SHARE THIS CODE WITH YOUR FRIENDS
-            </p>
-            <div className="room-code-display" onClick={handleCopyCode}>
-              {createdCode}
-            </div>
-            {copied && (
-              <p className="room-code-copied">COPIED TO CLIPBOARD!</p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
