@@ -11,9 +11,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/socket.io": {
+      "/api": {
         target: "http://localhost:3001",
-        ws: true,
       },
     },
     allowedHosts: ["localhost", "ape-allowing-lightly.ngrok-free.app"],
