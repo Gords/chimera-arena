@@ -18,11 +18,13 @@ import { io, type Socket } from 'socket.io-client';
 interface SocketContextValue {
   socket: Socket | null;
   connected: boolean;
+  latency: number;
 }
 
 const SocketContext = createContext<SocketContextValue>({
   socket: null,
   connected: false,
+  latency: 0,
 });
 
 // ---- Provider ----
@@ -34,6 +36,7 @@ interface SocketProviderProps {
 export function SocketProvider({ children }: SocketProviderProps) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
+  const [latency, setLatency] = useState(0);
   // Guard against StrictMode double-mount
   const mountedRef = useRef(false);
 
@@ -78,6 +81,17 @@ export function SocketProvider({ children }: SocketProviderProps) {
       console.log('[socket] reconnect attempt', attempt);
     });
 
+    // Ping/pong latency tracking
+    let pingStart = 0;
+    newSocket.io.on('ping', () => {
+      pingStart = performance.now();
+    });
+    newSocket.io.on('pong', () => {
+      const ms = Math.round(performance.now() - pingStart);
+      console.log(`[socket] ping: ${ms}ms`);
+      setLatency(ms);
+    });
+
     return () => {
       newSocket.removeAllListeners();
       newSocket.close();
@@ -87,7 +101,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   }, []);
 
   return (
-    <SocketContext.Provider value={{ socket, connected }}>
+    <SocketContext.Provider value={{ socket, connected, latency }}>
       {children}
     </SocketContext.Provider>
   );

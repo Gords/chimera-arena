@@ -66,10 +66,11 @@ export function GameProvider({ children }: GameProviderProps) {
   const [winner, setWinner] = useState<Team | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [liveBattleState, setLiveBattleState] = useState<BattleState | null>(null);
 
   // Derived state
   const phase = room?.phase ?? null;
-  const battleState = room?.battleState ?? null;
+  const battleState = liveBattleState ?? room?.battleState ?? null;
   const chimeras = room?.chimeras ?? null;
   const myTeam = player?.team ?? null;
 
@@ -129,11 +130,18 @@ export function GameProvider({ children }: GameProviderProps) {
 
     const onPhaseResult = (data: { winner: Team; battleLog: BattleLogEntry[] }) => {
       setWinner(data.winner);
+      setLiveBattleState(null);
     };
 
     const onPhaseLobby = (_data: { round: number }) => {
       setWinner(null);
       setGenerating(false);
+      setLiveBattleState(null);
+    };
+
+    // Lightweight battle state updates (no sprites, ~1-2 KB)
+    const onBattleState = (data: BattleState) => {
+      setLiveBattleState(data);
     };
 
     // Battle events
@@ -156,6 +164,7 @@ export function GameProvider({ children }: GameProviderProps) {
     socket.on('phase:battle', onPhaseBattle);
     socket.on('phase:result', onPhaseResult);
     socket.on('phase:lobby', onPhaseLobby);
+    socket.on('battle:state', onBattleState);
     socket.on('battle:error', onBattleError);
 
     return () => {
@@ -169,6 +178,7 @@ export function GameProvider({ children }: GameProviderProps) {
       socket.off('phase:battle', onPhaseBattle);
       socket.off('phase:result', onPhaseResult);
       socket.off('phase:lobby', onPhaseLobby);
+      socket.off('battle:state', onBattleState);
       socket.off('battle:error', onBattleError);
     };
   }, [socket, myTeam]);
@@ -220,6 +230,12 @@ export function GameProvider({ children }: GameProviderProps) {
     (cardId: string) => {
       if (!socket || !room) return;
       setError(null);
+      const t0 = performance.now();
+      const onAck = () => {
+        console.log(`[battle] action round-trip: ${Math.round(performance.now() - t0)}ms`);
+        socket.off('battle:state', onAck);
+      };
+      socket.on('battle:state', onAck);
       socket.emit('battle:play_card', { roomId: room.id, cardId });
     },
     [socket, room]
@@ -227,6 +243,12 @@ export function GameProvider({ children }: GameProviderProps) {
 
   const endTurn = useCallback(() => {
     if (!socket || !room) return;
+    const t0 = performance.now();
+    const onAck = () => {
+      console.log(`[battle] action round-trip: ${Math.round(performance.now() - t0)}ms`);
+      socket.off('battle:state', onAck);
+    };
+    socket.on('battle:state', onAck);
     socket.emit('battle:end_turn', { roomId: room.id });
   }, [socket, room]);
 

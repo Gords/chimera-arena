@@ -46,17 +46,17 @@ export class BattleAnimator {
     const stageWidth = app.screen.width;
     const stageHeight = app.screen.height;
 
-    // 1. Ability name flash on screen
-    await showAbilityName(container, card.name, stageWidth, stageHeight);
-
-    // 2. Card fly-in animation
-    await animateCardToCenter(
-      container,
-      card.name,
-      card.type,
-      stageWidth,
-      stageHeight
-    );
+    // 1+2. Ability name + card fly-in run in parallel
+    await Promise.all([
+      showAbilityName(container, card.name, stageWidth, stageHeight),
+      animateCardToCenter(
+        container,
+        card.name,
+        card.type,
+        stageWidth,
+        stageHeight
+      ),
+    ]);
 
     // 3. Attacker animation based on card type
     if (card.type === 'special') {
@@ -67,72 +67,84 @@ export class BattleAnimator {
       await attacker.defendAnimation();
     }
 
-    // 4. Damage effects on defender
-    if (result.damage > 0) {
-      spawnPixelParticles(
-        container,
-        defender.sprite.x,
-        defender.sprite.y - 40,
-        'hit'
-      );
-      screenShake(app.stage, Math.min(result.damage / 5, 10));
-      await defender.hurtAnimation();
-      showDamageNumber(
-        container,
-        defender.sprite.x,
-        defender.sprite.y - 60,
-        result.damage,
-        'damage'
-      );
-    }
+    // 4-7. Damage, shield, heal, status effects fire in parallel
+    {
+      const parallel: Promise<void>[] = [];
 
-    // 5. Shield effects on attacker
-    if (result.shieldGained > 0) {
-      spawnPixelParticles(
-        container,
-        attacker.sprite.x,
-        attacker.sprite.y - 40,
-        'shield'
-      );
-      showDamageNumber(
-        container,
-        attacker.sprite.x,
-        attacker.sprite.y - 60,
-        result.shieldGained,
-        'shield'
-      );
-    }
+      // 4. Damage effects on defender
+      if (result.damage > 0) {
+        parallel.push((async () => {
+          spawnPixelParticles(
+            container,
+            defender.sprite.x,
+            defender.sprite.y - 40,
+            'hit'
+          );
+          screenShake(app.stage, Math.min(result.damage / 5, 10));
+          await defender.hurtAnimation();
+          showDamageNumber(
+            container,
+            defender.sprite.x,
+            defender.sprite.y - 60,
+            result.damage,
+            'damage'
+          );
+        })());
+      }
 
-    // 6. Healing effects on attacker
-    if (result.healing > 0) {
-      spawnPixelParticles(
-        container,
-        attacker.sprite.x,
-        attacker.sprite.y - 40,
-        'heal'
-      );
-      showDamageNumber(
-        container,
-        attacker.sprite.x,
-        attacker.sprite.y - 60,
-        result.healing,
-        'heal'
-      );
-    }
+      // 5. Shield effects on attacker
+      if (result.shieldGained > 0) {
+        parallel.push((async () => {
+          spawnPixelParticles(
+            container,
+            attacker.sprite.x,
+            attacker.sprite.y - 40,
+            'shield'
+          );
+          showDamageNumber(
+            container,
+            attacker.sprite.x,
+            attacker.sprite.y - 60,
+            result.shieldGained,
+            'shield'
+          );
+        })());
+      }
 
-    // 7. Status effect particles on defender
-    if (result.effectApplied) {
-      spawnPixelParticles(
-        container,
-        defender.sprite.x,
-        defender.sprite.y - 40,
-        result.effectApplied
-      );
+      // 6. Healing effects on attacker
+      if (result.healing > 0) {
+        parallel.push((async () => {
+          spawnPixelParticles(
+            container,
+            attacker.sprite.x,
+            attacker.sprite.y - 40,
+            'heal'
+          );
+          showDamageNumber(
+            container,
+            attacker.sprite.x,
+            attacker.sprite.y - 60,
+            result.healing,
+            'heal'
+          );
+        })());
+      }
+
+      // 7. Status effect particles on defender
+      if (result.effectApplied) {
+        spawnPixelParticles(
+          container,
+          defender.sprite.x,
+          defender.sprite.y - 40,
+          result.effectApplied
+        );
+      }
+
+      if (parallel.length > 0) await Promise.all(parallel);
     }
 
     // 8. Reflect damage back to attacker
     if (result.reflectDamage && result.reflectDamage > 0) {
-      await new Promise((r) => setTimeout(r, 200));
       spawnPixelParticles(
         container,
         attacker.sprite.x,
@@ -167,7 +179,7 @@ export class BattleAnimator {
     }
 
     // 10. Brief pause before next action
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 250));
   }
 
   /**

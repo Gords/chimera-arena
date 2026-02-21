@@ -81,19 +81,19 @@ export async function animateCardToCenter(
 
   // Flash: briefly brighten
   cardBg.tint = 0xffffff;
-  await new Promise((r) => setTimeout(r, 150));
+  await new Promise((r) => setTimeout(r, 80));
 
   // Fade out and scale down
   await gsap.to(cardContainer, {
     alpha: 0,
-    duration: 0.3,
+    duration: 0.2,
     ease: 'power2.in',
   });
 
   gsap.to(cardContainer.scale, {
     x: 0.8,
     y: 0.8,
-    duration: 0.3,
+    duration: 0.2,
   });
 
   // Wait for the scale tween to effectively finish alongside the alpha
