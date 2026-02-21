@@ -10,7 +10,7 @@ import type { Room, Player, Team, SerializedRoom, BattleState } from './types.js
  */
 export function serializeBattleState(room: Room): BattleState | null {
   if (!room.battleState) return null;
-  return { ...room.battleState };
+  return structuredClone(room.battleState);
 }
 
 /**

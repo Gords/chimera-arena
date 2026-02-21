@@ -82,6 +82,9 @@ export function GameProvider({ children }: GameProviderProps) {
     // Full room state sync
     const onRoomState = (data: SerializedRoom) => {
       setRoom(data);
+      // Full room state is authoritative — clear lightweight override
+      // so we don't show stale data after reconnects or full syncs
+      setLiveBattleState(null);
 
       // Update our own player record from the room
       if (socket.id && data.players[socket.id]) {
@@ -230,12 +233,6 @@ export function GameProvider({ children }: GameProviderProps) {
     (cardId: string) => {
       if (!socket || !room) return;
       setError(null);
-      const t0 = performance.now();
-      const onAck = () => {
-        console.log(`[battle] action round-trip: ${Math.round(performance.now() - t0)}ms`);
-        socket.off('battle:state', onAck);
-      };
-      socket.on('battle:state', onAck);
       socket.emit('battle:play_card', { roomId: room.id, cardId });
     },
     [socket, room]
@@ -243,12 +240,7 @@ export function GameProvider({ children }: GameProviderProps) {
 
   const endTurn = useCallback(() => {
     if (!socket || !room) return;
-    const t0 = performance.now();
-    const onAck = () => {
-      console.log(`[battle] action round-trip: ${Math.round(performance.now() - t0)}ms`);
-      socket.off('battle:state', onAck);
-    };
-    socket.on('battle:state', onAck);
+    setError(null);
     socket.emit('battle:end_turn', { roomId: room.id });
   }, [socket, room]);
 

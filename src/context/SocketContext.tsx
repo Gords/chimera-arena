@@ -93,6 +93,8 @@ export function SocketProvider({ children }: SocketProviderProps) {
     });
 
     return () => {
+      newSocket.io.off('ping');
+      newSocket.io.off('pong');
       newSocket.removeAllListeners();
       newSocket.close();
       setSocket(null);

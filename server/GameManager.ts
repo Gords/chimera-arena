@@ -104,9 +104,11 @@ export class GameManager {
   /** Lightweight battle-only broadcast (~1-2 KB vs ~200+ KB for full room) */
   private broadcastBattleState(room: Room): void {
     const bs = serializeBattleState(room);
-    if (bs) {
-      this.io.to(room.id).emit('battle:state', bs);
+    if (!bs) {
+      console.error(`[GameManager] broadcastBattleState called but battleState is null for room ${room.id}`);
+      return;
     }
+    this.io.to(room.id).emit('battle:state', bs);
   }
 
   // ============================================================
