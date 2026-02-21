@@ -156,7 +156,7 @@ export default function BattleScreen() {
               justifyContent: 'space-around',
               width: '100%',
               height: '100%',
-              minHeight: 420,
+              minHeight: 320,
               background:
                 'linear-gradient(180deg, #0a0a20 0%, #1a1a3e 50%, #0f2020 100%)',
               padding: '20px 40px',
