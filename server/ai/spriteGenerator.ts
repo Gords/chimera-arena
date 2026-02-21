@@ -36,37 +36,145 @@ Subject: `;
  * Returns base64-encoded image data and its MIME type.
  */
 /**
- * Remove the green-screen background from a sprite image.
- * Converts bright green (#00FF00 and nearby shades) to transparent.
+ * Remove the background from a sprite image by detecting the dominant
+ * corner color and flood-filling from edges. Works regardless of what
+ * background color the AI actually generates.
  */
-async function removeBackground(
-  imageBuffer: Buffer,
-): Promise<Buffer> {
+async function removeBackground(imageBuffer: Buffer): Promise<Buffer> {
   const { data, info } = await sharp(imageBuffer)
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
 
+  const { width, height, channels } = info;
   const pixels = new Uint8Array(data);
-  const THRESHOLD = 80; // tolerance for green-screen detection
 
-  for (let i = 0; i < pixels.length; i += 4) {
-    const r = pixels[i];
-    const g = pixels[i + 1];
-    const b = pixels[i + 2];
+  // Step 1: Sample corners to detect the background color
+  const cornerSamples: Array<[number, number, number]> = [];
+  const sampleSize = Math.max(4, Math.floor(Math.min(width, height) * 0.05));
 
-    // Detect green-screen: high green, low red and blue
-    if (g > 180 && r < THRESHOLD && b < THRESHOLD) {
-      pixels[i + 3] = 0; // set alpha to 0
+  for (let y = 0; y < sampleSize; y++) {
+    for (let x = 0; x < sampleSize; x++) {
+      // All 4 corners
+      for (const [sx, sy] of [
+        [x, y],
+        [width - 1 - x, y],
+        [x, height - 1 - y],
+        [width - 1 - x, height - 1 - y],
+      ]) {
+        const i = (sy * width + sx) * channels;
+        cornerSamples.push([pixels[i], pixels[i + 1], pixels[i + 2]]);
+      }
     }
-    // Also catch near-white backgrounds (common AI fallback)
-    if (r > 240 && g > 240 && b > 240) {
-      pixels[i + 3] = 0;
+  }
+
+  // Find the most common color among corner samples (bucket by rounding to nearest 8)
+  const colorCounts = new Map<string, { count: number; r: number; g: number; b: number }>();
+  for (const [r, g, b] of cornerSamples) {
+    const key = `${r >> 3},${g >> 3},${b >> 3}`;
+    const entry = colorCounts.get(key);
+    if (entry) {
+      entry.count++;
+      entry.r += r;
+      entry.g += g;
+      entry.b += b;
+    } else {
+      colorCounts.set(key, { count: 1, r, g, b });
+    }
+  }
+
+  let best = { count: 0, r: 0, g: 0, b: 0 };
+  for (const entry of colorCounts.values()) {
+    if (entry.count > best.count) best = entry;
+  }
+
+  // Average of the winning bucket
+  const bgR = Math.round(best.r / best.count);
+  const bgG = Math.round(best.g / best.count);
+  const bgB = Math.round(best.b / best.count);
+
+  console.log(`[SpriteGenerator] Detected background color: rgb(${bgR}, ${bgG}, ${bgB})`);
+
+  // Step 2: Flood-fill from all edge pixels that match the background color.
+  // This avoids removing interior pixels that happen to be similar.
+  const TOLERANCE = 55;
+  const visited = new Uint8Array(width * height); // 0 = unvisited, 1 = visited
+  const toRemove = new Uint8Array(width * height); // 1 = mark transparent
+
+  function colorDist(i: number): number {
+    const dr = pixels[i] - bgR;
+    const dg = pixels[i + 1] - bgG;
+    const db = pixels[i + 2] - bgB;
+    return Math.sqrt(dr * dr + dg * dg + db * db);
+  }
+
+  // BFS flood-fill from edges
+  const queue: number[] = []; // flat indices (y * width + x)
+
+  // Seed with all edge pixels
+  for (let x = 0; x < width; x++) {
+    queue.push(x);                          // top row
+    queue.push((height - 1) * width + x);   // bottom row
+  }
+  for (let y = 1; y < height - 1; y++) {
+    queue.push(y * width);                  // left column
+    queue.push(y * width + (width - 1));    // right column
+  }
+
+  while (queue.length > 0) {
+    const idx = queue.pop()!;
+    if (visited[idx]) continue;
+    visited[idx] = 1;
+
+    const pi = idx * channels;
+    if (colorDist(pi) > TOLERANCE) continue;
+
+    toRemove[idx] = 1;
+
+    const x = idx % width;
+    const y = (idx - x) / width;
+
+    // 4-connected neighbors
+    if (x > 0 && !visited[idx - 1]) queue.push(idx - 1);
+    if (x < width - 1 && !visited[idx + 1]) queue.push(idx + 1);
+    if (y > 0 && !visited[idx - width]) queue.push(idx - width);
+    if (y < height - 1 && !visited[idx + width]) queue.push(idx + width);
+  }
+
+  // Step 3: Apply transparency and soften edges
+  for (let i = 0; i < width * height; i++) {
+    if (toRemove[i]) {
+      pixels[i * channels + 3] = 0;
+    }
+  }
+
+  // Step 4: Anti-alias the edges — partially transparent pixels next to removed ones
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const idx = y * width + x;
+      if (toRemove[idx]) continue; // already removed
+
+      // Count how many neighbors were removed
+      let removedNeighbors = 0;
+      if (toRemove[idx - 1]) removedNeighbors++;
+      if (toRemove[idx + 1]) removedNeighbors++;
+      if (toRemove[idx - width]) removedNeighbors++;
+      if (toRemove[idx + width]) removedNeighbors++;
+
+      if (removedNeighbors > 0) {
+        const pi = idx * channels;
+        const dist = colorDist(pi);
+        if (dist < TOLERANCE * 1.5) {
+          // Fade alpha based on distance from bg color
+          const fade = Math.min(1, dist / (TOLERANCE * 1.5));
+          pixels[pi + 3] = Math.round(pixels[pi + 3] * fade);
+        }
+      }
     }
   }
 
   return sharp(Buffer.from(pixels), {
-    raw: { width: info.width, height: info.height, channels: 4 },
+    raw: { width, height, channels: 4 },
   })
     .png()
     .toBuffer();
