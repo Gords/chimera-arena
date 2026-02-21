@@ -375,7 +375,7 @@ export class ArenaStage {
     this.enemySprite = new ChimeraSprite(enemyTexture, enemyX, groundY);
 
     // Flip enemy horizontally (negative scale preserves magnitude)
-    this.enemySprite.sprite.scale.x = -3;
+    this.enemySprite.sprite.scale.x = -4;
 
     // Add to sprite container
     this.spriteContainer.addChild(this.playerSprite.sprite);

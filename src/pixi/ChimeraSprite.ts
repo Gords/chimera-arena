@@ -12,8 +12,8 @@ export class ChimeraSprite {
     this.sprite.anchor.set(0.5, 1.0); // Bottom-center
     this.sprite.texture.source.scaleMode = 'nearest'; // Crispy pixels (Pixi v8)
     this.sprite.position.set(x, y);
-    // Scale up for pixel art visibility (3x)
-    this.sprite.scale.set(3, 3);
+    // Scale up for pixel art visibility (4x)
+    this.sprite.scale.set(4, 4);
     this.baseX = x;
     this.baseY = y;
   }

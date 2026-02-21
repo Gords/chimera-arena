@@ -69,7 +69,7 @@ Respond ONLY in this JSON:
     "effect": "string (mechanical description)"
   },
   "weaknesses": ["string"],
-  "spritePrompt": "string (concise 16-bit pixel art sprite description for image generation)"
+  "spritePrompt": "string (concise description of the chimera's appearance for pixel art sprite generation. Describe ONLY the creature, not the background. Example: 'dragon skull head with crystal torso, shadow tendrils, spider legs, cursed crown, dark purple palette')"
 }`;
 
 // ---- Validation helpers ----
