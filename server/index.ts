@@ -360,6 +360,16 @@ io.on('connection', (socket) => {
 // Start
 // ============================================================
 
+// Suppress EPIPE/ECONNRESET from normal WebSocket disconnects
+httpServer.on('clientError', (err: NodeJS.ErrnoException, socket) => {
+  if (err.code === 'EPIPE' || err.code === 'ECONNRESET') {
+    socket.destroy();
+    return;
+  }
+  console.error('[server] clientError:', err);
+  socket.destroy();
+});
+
 httpServer.listen(PORT, () => {
   console.log(`Chimera Arena server listening on port ${PORT}`);
   if (!IS_PRODUCTION) {

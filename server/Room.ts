@@ -2,7 +2,16 @@
 // Chimera Arena - Room Manager
 // ============================================================
 
-import type { Room, Player, Team, SerializedRoom } from './types.js';
+import type { Room, Player, Team, SerializedRoom, BattleState } from './types.js';
+
+/**
+ * Serialize only the battle state (~1-2 KB) instead of the full room
+ * which includes base64 sprites (~200+ KB).
+ */
+export function serializeBattleState(room: Room): BattleState | null {
+  if (!room.battleState) return null;
+  return structuredClone(room.battleState);
+}
 
 /**
  * Convert a Room (which uses Map for players) into a plain-object

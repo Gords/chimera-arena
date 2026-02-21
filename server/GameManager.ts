@@ -15,7 +15,7 @@ import type {
   BuildSlot,
   StatusEffect,
 } from './types.js';
-import { serializeRoom } from './Room.js';
+import { serializeRoom, serializeBattleState } from './Room.js';
 
 // ----- Constants -----
 
@@ -99,6 +99,16 @@ export class GameManager {
 
   private broadcastRoomState(room: Room): void {
     this.io.to(room.id).emit('room:state', serializeRoom(room));
+  }
+
+  /** Lightweight battle-only broadcast (~1-2 KB vs ~200+ KB for full room) */
+  private broadcastBattleState(room: Room): void {
+    const bs = serializeBattleState(room);
+    if (!bs) {
+      console.error(`[GameManager] broadcastBattleState called but battleState is null for room ${room.id}`);
+      return;
+    }
+    this.io.to(room.id).emit('battle:state', bs);
   }
 
   // ============================================================
@@ -298,7 +308,7 @@ export class GameManager {
     };
     bs.log.push(logEntry);
 
-    this.broadcastRoomState(room);
+    this.broadcastBattleState(room);
     this.io.to(room.id).emit('battle:card_played', {
       team,
       card,
@@ -373,7 +383,7 @@ export class GameManager {
 
     bs.turnTimer = TURN_TIMER_DURATION;
 
-    this.broadcastRoomState(room);
+    this.broadcastBattleState(room);
     this.io.to(room.id).emit('battle:turn', {
       activeTeam: nextTeam,
       turn: bs.turn,
