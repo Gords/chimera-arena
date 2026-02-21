@@ -2,10 +2,16 @@
 // Chimera Arena - Chimera Stats & Cards Generator (Gemini 3 Flash)
 // ============================================================
 
-import { getAI } from './client.js';
-import type { Chimera, AbilityCard, BuildParts, CardEffect, PassiveTrigger } from '../types.js';
+import { getAI } from "./client.js";
+import type {
+  Chimera,
+  AbilityCard,
+  BuildParts,
+  CardEffect,
+  PassiveTrigger,
+} from "../types.js";
 
-const MODEL = 'gemini-2.5-flash-preview-05-20';
+const MODEL = "gemini-2.5-flash";
 
 const CHIMERA_SYSTEM_PROMPT = `You are the Chimera Forge for Chimera Arena, a turn-based card battler with 16/32-bit pixel art aesthetics.
 
@@ -73,35 +79,55 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 const VALID_EFFECTS: CardEffect[] = [
-  'burn', 'freeze', 'poison', 'stun', 'lifesteal', 'mana_drain', 'reflect', null,
+  "burn",
+  "freeze",
+  "poison",
+  "stun",
+  "lifesteal",
+  "mana_drain",
+  "reflect",
+  null,
 ];
 
 const VALID_TRIGGERS: PassiveTrigger[] = [
-  'on_hit', 'on_turn_start', 'on_low_hp', 'on_kill', 'always',
+  "on_hit",
+  "on_turn_start",
+  "on_low_hp",
+  "on_kill",
+  "always",
 ];
 
-const VALID_CARD_TYPES = ['attack', 'defense', 'special'] as const;
+const VALID_CARD_TYPES = ["attack", "defense", "special"] as const;
 
 function validateEffect(effect: unknown): CardEffect {
-  if (effect === null || effect === 'null' || effect === undefined) return null;
-  if (typeof effect === 'string' && VALID_EFFECTS.includes(effect as CardEffect)) {
+  if (effect === null || effect === "null" || effect === undefined) return null;
+  if (
+    typeof effect === "string" &&
+    VALID_EFFECTS.includes(effect as CardEffect)
+  ) {
     return effect as CardEffect;
   }
   return null;
 }
 
 function validateTrigger(trigger: unknown): PassiveTrigger {
-  if (typeof trigger === 'string' && VALID_TRIGGERS.includes(trigger as PassiveTrigger)) {
+  if (
+    typeof trigger === "string" &&
+    VALID_TRIGGERS.includes(trigger as PassiveTrigger)
+  ) {
     return trigger as PassiveTrigger;
   }
-  return 'always';
+  return "always";
 }
 
-function validateCardType(type: unknown): 'attack' | 'defense' | 'special' {
-  if (typeof type === 'string' && VALID_CARD_TYPES.includes(type as typeof VALID_CARD_TYPES[number])) {
-    return type as 'attack' | 'defense' | 'special';
+function validateCardType(type: unknown): "attack" | "defense" | "special" {
+  if (
+    typeof type === "string" &&
+    VALID_CARD_TYPES.includes(type as (typeof VALID_CARD_TYPES)[number])
+  ) {
+    return type as "attack" | "defense" | "special";
   }
-  return 'attack';
+  return "attack";
 }
 
 interface RawCard {
@@ -138,11 +164,14 @@ interface RawChimeraResponse {
   spritePrompt?: string;
 }
 
-function validateCard(raw: RawCard, index: number): Omit<AbilityCard, 'cardArt'> & { cardArt: string } {
+function validateCard(
+  raw: RawCard,
+  index: number,
+): Omit<AbilityCard, "cardArt"> & { cardArt: string } {
   return {
     id: raw.id || `card_${index + 1}`,
     name: raw.name || `Ability ${index + 1}`,
-    description: raw.description || 'A mysterious ability.',
+    description: raw.description || "A mysterious ability.",
     manaCost: clamp(raw.manaCost ?? 2, 1, 4),
     damage: clamp(raw.damage ?? 0, 0, 40),
     healing: clamp(raw.healing ?? 0, 0, 25),
@@ -151,12 +180,14 @@ function validateCard(raw: RawCard, index: number): Omit<AbilityCard, 'cardArt'>
     effectDuration: clamp(raw.effectDuration ?? 0, 0, 5),
     cooldown: clamp(raw.cooldown ?? 0, 0, 5),
     type: validateCardType(raw.type),
-    cardArt: raw.cardArt || 'A glowing magical orb with sparks',
+    cardArt: raw.cardArt || "A glowing magical orb with sparks",
   };
 }
 
 function validateChimeraResponse(raw: RawChimeraResponse): {
-  chimera: Omit<Chimera, 'sprite' | 'stats'> & { stats: { maxHp: number; maxMana: number; manaRegen: number } };
+  chimera: Omit<Chimera, "sprite" | "stats"> & {
+    stats: { maxHp: number; maxMana: number; manaRegen: number };
+  };
   spritePrompt: string;
   cardArtPrompts: string[];
 } {
@@ -165,13 +196,18 @@ function validateChimeraResponse(raw: RawChimeraResponse): {
     cards.push({
       id: `card_${cards.length + 1}`,
       name: `Fallback Ability ${cards.length + 1}`,
-      description: 'A basic ability.',
+      description: "A basic ability.",
       manaCost: 1,
       damage: cards.length === 0 ? 10 : 0,
       healing: cards.length === 1 ? 5 : 0,
       shield: cards.length === 1 ? 5 : 0,
-      type: cards.length === 0 ? 'attack' : cards.length === 1 ? 'defense' : 'special',
-      cardArt: 'A glowing magical orb',
+      type:
+        cards.length === 0
+          ? "attack"
+          : cards.length === 1
+            ? "defense"
+            : "special",
+      cardArt: "A glowing magical orb",
     });
   }
 
@@ -184,13 +220,14 @@ function validateChimeraResponse(raw: RawChimeraResponse): {
 
   const chimeraCards: AbilityCard[] = validatedCards.map((c) => ({
     ...c,
-    cardArt: '', // placeholder - will be filled by sprite generator
+    cardArt: "", // placeholder - will be filled by sprite generator
   }));
 
   return {
     chimera: {
-      name: raw.name || 'Unnamed Chimera',
-      description: raw.description || 'A mysterious creature emerges from the forge.',
+      name: raw.name || "Unnamed Chimera",
+      description:
+        raw.description || "A mysterious creature emerges from the forge.",
       stats: {
         maxHp: clamp(raw.stats?.maxHp ?? 120, 80, 200),
         maxMana: clamp(raw.stats?.maxMana ?? 4, 3, 6),
@@ -198,16 +235,22 @@ function validateChimeraResponse(raw: RawChimeraResponse): {
       },
       cards: chimeraCards,
       passiveAbility: {
-        name: raw.passiveAbility?.name || 'Chimeric Resilience',
-        description: raw.passiveAbility?.description || 'The chimera adapts to survive.',
+        name: raw.passiveAbility?.name || "Chimeric Resilience",
+        description:
+          raw.passiveAbility?.description || "The chimera adapts to survive.",
         trigger: validateTrigger(raw.passiveAbility?.trigger),
-        effect: raw.passiveAbility?.effect || 'Recovers 2 HP at the start of each turn.',
+        effect:
+          raw.passiveAbility?.effect ||
+          "Recovers 2 HP at the start of each turn.",
       },
-      weaknesses: Array.isArray(raw.weaknesses) && raw.weaknesses.length > 0
-        ? raw.weaknesses.map(String)
-        : ['Unknown weakness'],
+      weaknesses:
+        Array.isArray(raw.weaknesses) && raw.weaknesses.length > 0
+          ? raw.weaknesses.map(String)
+          : ["Unknown weakness"],
     },
-    spritePrompt: raw.spritePrompt || 'A 16-bit pixel art chimera creature, idle battle pose',
+    spritePrompt:
+      raw.spritePrompt ||
+      "A 16-bit pixel art chimera creature, idle battle pose",
     cardArtPrompts,
   };
 }
@@ -215,12 +258,16 @@ function validateChimeraResponse(raw: RawChimeraResponse): {
 // ---- Main generator function ----
 
 export interface ChimeraGeneratorResult {
-  chimera: Omit<Chimera, 'sprite' | 'stats'> & { stats: { maxHp: number; maxMana: number; manaRegen: number } };
+  chimera: Omit<Chimera, "sprite" | "stats"> & {
+    stats: { maxHp: number; maxMana: number; manaRegen: number };
+  };
   spritePrompt: string;
   cardArtPrompts: string[];
 }
 
-export async function generateChimeraStats(parts: BuildParts): Promise<ChimeraGeneratorResult> {
+export async function generateChimeraStats(
+  parts: BuildParts,
+): Promise<ChimeraGeneratorResult> {
   const userPrompt = `Create a chimera from these body parts chosen by a player team:
 - HEAD: ${parts.head}
 - TORSO: ${parts.torso}
@@ -237,15 +284,15 @@ Generate the chimera JSON now.`;
     try {
       const response = await getAI().models.generateContent({
         model: MODEL,
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
         config: {
           systemInstruction: CHIMERA_SYSTEM_PROMPT,
-          responseMimeType: 'application/json',
+          responseMimeType: "application/json",
           temperature: 1.0,
         },
       });
 
-      const text = response.text ?? '';
+      const text = response.text ?? "";
       const parsed: RawChimeraResponse = JSON.parse(text);
       const validated = validateChimeraResponse(parsed);
 
@@ -261,7 +308,7 @@ Generate the chimera JSON now.`;
       );
       // Only retry once
       if (attempt === 0) {
-        console.log('[ChimeraGenerator] Retrying...');
+        console.log("[ChimeraGenerator] Retrying...");
       }
     }
   }

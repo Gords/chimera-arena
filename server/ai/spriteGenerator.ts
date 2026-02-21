@@ -2,9 +2,9 @@
 // Chimera Arena - Sprite & Card Art Generator (Gemini Image Output)
 // ============================================================
 
-import { getAI } from './client.js';
+import { getAI } from "./client.js";
 
-const MODEL = 'gemini-2.5-flash-preview-05-20';
+const MODEL = "gemini-2.5-flash-image";
 
 const CHIMERA_SPRITE_STYLE = `Generate a 16-bit JRPG battle sprite with these requirements:
 - Side-view perspective (like Final Fantasy or Chrono Trigger battle sprites)
@@ -40,12 +40,12 @@ export async function generateChimeraSprite(
       model: MODEL,
       contents: [
         {
-          role: 'user',
+          role: "user",
           parts: [{ text: CHIMERA_SPRITE_STYLE + spritePrompt }],
         },
       ],
       config: {
-        responseModalities: ['TEXT', 'IMAGE'],
+        responseModalities: ["TEXT", "IMAGE"],
       },
     });
 
@@ -62,14 +62,16 @@ export async function generateChimeraSprite(
       }
     }
 
-    console.warn('[SpriteGenerator] No image data found in chimera sprite response');
-    return { base64: '', mimeType: 'image/png' };
+    console.warn(
+      "[SpriteGenerator] No image data found in chimera sprite response",
+    );
+    return { base64: "", mimeType: "image/png" };
   } catch (err) {
     console.error(
-      '[SpriteGenerator] Failed to generate chimera sprite:',
+      "[SpriteGenerator] Failed to generate chimera sprite:",
       err instanceof Error ? err.message : String(err),
     );
-    return { base64: '', mimeType: 'image/png' };
+    return { base64: "", mimeType: "image/png" };
   }
 }
 
@@ -85,12 +87,12 @@ export async function generateCardArt(
       model: MODEL,
       contents: [
         {
-          role: 'user',
+          role: "user",
           parts: [{ text: CARD_ART_STYLE + cardArtPrompt }],
         },
       ],
       config: {
-        responseModalities: ['TEXT', 'IMAGE'],
+        responseModalities: ["TEXT", "IMAGE"],
       },
     });
 
@@ -107,13 +109,13 @@ export async function generateCardArt(
       }
     }
 
-    console.warn('[SpriteGenerator] No image data found in card art response');
-    return { base64: '', mimeType: 'image/png' };
+    console.warn("[SpriteGenerator] No image data found in card art response");
+    return { base64: "", mimeType: "image/png" };
   } catch (err) {
     console.error(
-      '[SpriteGenerator] Failed to generate card art:',
+      "[SpriteGenerator] Failed to generate card art:",
       err instanceof Error ? err.message : String(err),
     );
-    return { base64: '', mimeType: 'image/png' };
+    return { base64: "", mimeType: "image/png" };
   }
 }

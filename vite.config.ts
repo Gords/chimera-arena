@@ -16,5 +16,6 @@ export default defineConfig({
         ws: true,
       },
     },
+    allowedHosts: ["localhost", "ape-allowing-lightly.ngrok-free.app"],
   },
 });
