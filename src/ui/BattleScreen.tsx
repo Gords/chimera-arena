@@ -12,7 +12,7 @@ import TurnIndicator from './components/TurnIndicator';
 import BattleLog from './components/BattleLog';
 import type { Team, Chimera, ChimeraBattleState, StatusEffect } from '../types';
 
-const TURN_DURATION = 30;
+const TURN_DURATION = 15;
 
 export default function BattleScreen() {
   const { room, myTeam, chimeras, battleState, playCard, endTurn } = useGame();
@@ -304,13 +304,20 @@ export default function BattleScreen() {
             {renderStatusEffects(myBattleState.statusEffects)}
           </div>
 
-          <button
-            className="btn btn-primary end-turn-btn"
-            disabled={!isMyTurn}
-            onClick={handleEndTurn}
-          >
-            END TURN
-          </button>
+          <div className="end-turn-wrapper">
+            <button
+              className="btn btn-primary end-turn-btn"
+              disabled={!isMyTurn}
+              onClick={handleEndTurn}
+            >
+              END TURN
+            </button>
+            {isMyTurn && (
+              <span className={`end-turn-timer${turnTimer <= 5 ? ' end-turn-timer-critical' : ''}`}>
+                {turnTimer}s
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Card hand */}

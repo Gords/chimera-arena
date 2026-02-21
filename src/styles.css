@@ -1114,9 +1114,28 @@ h4 { font-size: 10px; }
   transform: translateX(0);
 }
 
+.end-turn-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .end-turn-btn {
   font-size: 10px;
   padding: 12px 24px;
+}
+
+.end-turn-timer {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 14px;
+  color: var(--accent-gold);
+  min-width: 36px;
+  text-align: center;
+}
+
+.end-turn-timer-critical {
+  color: var(--team-red);
+  animation: pulse 0.5s ease-in-out infinite;
 }
 
 /* ---- Result Screen ---- */

@@ -20,7 +20,7 @@ import { serializeRoom } from './Room.js';
 // ----- Constants -----
 
 const BUILD_PHASE_DURATION = 60; // seconds
-const TURN_TIMER_DURATION = 30; // seconds
+const TURN_TIMER_DURATION = 15; // seconds
 
 // ----- Timers -----
 
@@ -315,6 +315,9 @@ export class GameManager {
       this.endBattle(room, otherTeam);
       return true;
     }
+
+    // 1 attack per turn — auto-end turn after playing a card
+    this.endTurn(room, team);
 
     return true;
   }
