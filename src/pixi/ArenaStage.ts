@@ -367,15 +367,20 @@ export class ArenaStage {
     const playerTexture = await this._base64ToTexture(playerSpriteBase64);
     const enemyTexture = await this._base64ToTexture(enemySpriteBase64);
 
+    // Scale sprites to fit ~40% of arena height
+    const targetHeight = h * 0.4;
+    const playerScale = targetHeight / playerTexture.height;
+    const enemyScale = targetHeight / enemyTexture.height;
+
     // Player on left (25%), enemy on right (75%), both at ground level
     const playerX = w * 0.25;
     const enemyX = w * 0.75;
 
-    this.playerSprite = new ChimeraSprite(playerTexture, playerX, groundY);
-    this.enemySprite = new ChimeraSprite(enemyTexture, enemyX, groundY);
+    this.playerSprite = new ChimeraSprite(playerTexture, playerX, groundY, playerScale);
+    this.enemySprite = new ChimeraSprite(enemyTexture, enemyX, groundY, enemyScale);
 
     // Flip enemy horizontally (negative scale preserves magnitude)
-    this.enemySprite.sprite.scale.x = -4;
+    this.enemySprite.sprite.scale.x = -enemyScale;
 
     // Add to sprite container
     this.spriteContainer.addChild(this.playerSprite.sprite);

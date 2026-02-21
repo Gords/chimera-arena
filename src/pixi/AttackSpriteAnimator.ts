@@ -7,7 +7,7 @@
 import * as PIXI from 'pixi.js';
 
 const FRAME_COUNT = 4;
-const DISPLAY_SCALE = 4;
+const DISPLAY_SCALE = 1;
 
 export interface AttackAnimationOptions {
   spritesheetBase64: string;

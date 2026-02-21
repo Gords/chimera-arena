@@ -7,13 +7,12 @@ export class ChimeraSprite {
   private baseY: number;
   private idleTween: gsap.core.Tween | null = null;
 
-  constructor(texture: PIXI.Texture, x: number, y: number) {
+  constructor(texture: PIXI.Texture, x: number, y: number, scale: number = 1) {
     this.sprite = new PIXI.Sprite(texture);
     this.sprite.anchor.set(0.5, 1.0); // Bottom-center
     this.sprite.texture.source.scaleMode = 'nearest'; // Crispy pixels (Pixi v8)
     this.sprite.position.set(x, y);
-    // Scale up for pixel art visibility (4x)
-    this.sprite.scale.set(4, 4);
+    this.sprite.scale.set(scale, scale);
     this.baseX = x;
     this.baseY = y;
   }
