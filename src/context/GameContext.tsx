@@ -29,7 +29,7 @@ import type {
 
 const POLL_LOBBY = 2000;
 const POLL_BUILD = 1500;
-const POLL_BATTLE = 500;
+const POLL_BATTLE = 250;
 const POLL_DEFAULT = 1000;
 
 function pollIntervalForPhase(phase: Phase | null): number {
@@ -184,6 +184,8 @@ interface GameContextValue {
   error: string | null;
   connected: boolean;
   recentEvents: GameEvent[];
+  /** True while a card play request is in flight (prevents double-clicks). */
+  cardPlaying: boolean;
 
   // Actions
   createRoom: (playerName: string) => void;
@@ -332,16 +334,22 @@ export function GameProvider({ children }: GameProviderProps) {
     }
   }, []);
 
+  const [cardPlaying, setCardPlaying] = React.useState(false);
+
   const playCard = useCallback(async (cardId: string) => {
     const { roomId, playerId } = stateRef.current;
     if (!roomId || !playerId) return;
+    setCardPlaying(true);
     dispatch({ type: 'CLEAR_ERROR' });
     try {
-      await api.playCard(roomId, playerId, cardId);
+      const room = await api.playCard(roomId, playerId, cardId);
+      // Immediately update state with the server's response (turn already switched)
+      dispatch({ type: 'ROOM_STATE', room, playerId });
     } catch (err) {
       dispatch({ type: 'SET_ERROR', error: (err as Error).message });
-      // Auto-clear battle errors after 3 seconds
       setTimeout(() => dispatch({ type: 'CLEAR_ERROR' }), 3000);
+    } finally {
+      setCardPlaying(false);
     }
   }, []);
 
@@ -349,7 +357,8 @@ export function GameProvider({ children }: GameProviderProps) {
     const { roomId, playerId } = stateRef.current;
     if (!roomId || !playerId) return;
     try {
-      await api.endTurn(roomId, playerId);
+      const room = await api.endTurn(roomId, playerId);
+      dispatch({ type: 'ROOM_STATE', room, playerId });
     } catch (err) {
       dispatch({ type: 'SET_ERROR', error: (err as Error).message });
     }
@@ -398,6 +407,7 @@ export function GameProvider({ children }: GameProviderProps) {
     error: state.error,
     connected: state.connected,
     recentEvents: state.recentEvents,
+    cardPlaying,
     createRoom,
     joinRoom,
     setReady,

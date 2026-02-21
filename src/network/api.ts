@@ -51,18 +51,24 @@ export interface RoomStateResponse extends SerializedRoom {
 
 export const api = {
   /** Create a new room. Returns the room ID and the creator's player ID. */
-  createRoom: (playerName: string) =>
-    post<{ roomId: string; playerId: string }>('/rooms', { playerName }),
+  createRoom: async (playerName: string) => {
+    const data = await post<{ ok: boolean; roomId: string; playerId: string }>('/rooms', { playerName });
+    return { roomId: data.roomId, playerId: data.playerId };
+  },
 
   /** Join an existing room. Returns the joining player's ID. */
-  joinRoom: (roomId: string, playerName: string) =>
-    post<{ playerId: string }>(`/rooms/${roomId}/join`, { playerName }),
+  joinRoom: async (roomId: string, playerName: string) => {
+    const data = await post<{ ok: boolean; playerId: string }>(`/rooms/${roomId}/join`, { playerName });
+    return { playerId: data.playerId };
+  },
 
   /** Poll room state. Pass `since` to get only new events. */
-  getRoom: (roomId: string, since?: number) =>
-    get<RoomStateResponse>(
+  getRoom: async (roomId: string, since?: number): Promise<RoomStateResponse> => {
+    const data = await get<{ ok: boolean; room: RoomStateResponse }>(
       `/rooms/${roomId}${since != null ? `?since=${since}` : ''}`
-    ),
+    );
+    return data.room;
+  },
 
   /** Toggle ready status. */
   setReady: (roomId: string, playerId: string) =>
@@ -89,13 +95,17 @@ export const api = {
   acceptChimera: (roomId: string, playerId: string) =>
     post<void>(`/rooms/${roomId}/accept`, { playerId }),
 
-  /** Play a card during battle. */
-  playCard: (roomId: string, playerId: string, cardId: string) =>
-    post<void>(`/rooms/${roomId}/battle/play`, { playerId, cardId }),
+  /** Play a card during battle. Returns updated room state. */
+  playCard: async (roomId: string, playerId: string, cardId: string): Promise<RoomStateResponse> => {
+    const data = await post<{ ok: boolean; room: RoomStateResponse }>(`/rooms/${roomId}/battle/play`, { playerId, cardId });
+    return data.room;
+  },
 
-  /** End your turn during battle. */
-  endTurn: (roomId: string, playerId: string) =>
-    post<void>(`/rooms/${roomId}/battle/end-turn`, { playerId }),
+  /** End your turn during battle. Returns updated room state. */
+  endTurn: async (roomId: string, playerId: string): Promise<RoomStateResponse> => {
+    const data = await post<{ ok: boolean; room: RoomStateResponse }>(`/rooms/${roomId}/battle/end-turn`, { playerId });
+    return data.room;
+  },
 
   /** Return to the lobby after a match. */
   returnToLobby: (roomId: string, playerId: string) =>
