@@ -15,7 +15,7 @@ import type {
   BuildSlot,
   StatusEffect,
 } from './types.js';
-import { serializeRoom } from './Room.js';
+import { serializeRoom, serializeBattleState } from './Room.js';
 
 // ----- Constants -----
 
@@ -95,10 +95,20 @@ export class GameManager {
     this.io = io;
   }
 
-  // ----- Broadcast helper -----
+  // ----- Broadcast helpers -----
 
   private broadcastRoomState(room: Room): void {
     this.io.to(room.id).emit('room:state', serializeRoom(room));
+  }
+
+  /**
+   * During battle, send only the battle state (~1-2 KB) instead of the
+   * full room (~200+ KB with base64 sprites). Clients already have
+   * chimera/player data from the reveal phase.
+   */
+  private broadcastBattleState(room: Room): void {
+    if (!room.battleState) return;
+    this.io.to(room.id).emit('battle:state', serializeBattleState(room.battleState));
   }
 
   // ============================================================
@@ -298,12 +308,13 @@ export class GameManager {
     };
     bs.log.push(logEntry);
 
-    this.broadcastRoomState(room);
+    // Send lightweight battle state + card event (no full room with sprites)
     this.io.to(room.id).emit('battle:card_played', {
       team,
       card,
       result,
     });
+    this.broadcastBattleState(room);
 
     // Check win condition
     if (defender.hp <= 0) {
@@ -373,12 +384,13 @@ export class GameManager {
 
     bs.turnTimer = TURN_TIMER_DURATION;
 
-    this.broadcastRoomState(room);
+    // Send lightweight battle state + turn event (no full room with sprites)
     this.io.to(room.id).emit('battle:turn', {
       activeTeam: nextTeam,
       turn: bs.turn,
       frozenSkip: bs.frozenSkip,
     });
+    this.broadcastBattleState(room);
 
     // If frozen, auto-end after a short delay
     if (bs.frozenSkip) {
@@ -387,7 +399,7 @@ export class GameManager {
         room.id,
         setTimeout(() => {
           this.endTurn(room, nextTeam);
-        }, 2000)
+        }, 1000)
       );
     } else {
       this.startTurnTimer(room);

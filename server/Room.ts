@@ -31,8 +31,25 @@ export function serializeRoom(room: Room): SerializedRoom {
       red: { ...room.buildParts.red },
       blue: { ...room.buildParts.blue },
     },
-    battleState: room.battleState ? { ...room.battleState } : null,
+    battleState: room.battleState ? serializeBattleState(room.battleState) : null,
     accepted: { ...room.accepted },
+  };
+}
+
+/**
+ * Serialize just the battle state — a lightweight payload (~1-2 KB)
+ * that excludes chimera sprites, card art, build parts, and player data.
+ * Used for mid-battle updates instead of the full room state.
+ */
+export function serializeBattleState(bs: import('./types.js').BattleState) {
+  return {
+    turn: bs.turn,
+    activeTeam: bs.activeTeam,
+    turnTimer: bs.turnTimer,
+    redChimera: { ...bs.redChimera, statusEffects: [...bs.redChimera.statusEffects] },
+    blueChimera: { ...bs.blueChimera, statusEffects: [...bs.blueChimera.statusEffects] },
+    log: bs.log,
+    frozenSkip: bs.frozenSkip,
   };
 }
 

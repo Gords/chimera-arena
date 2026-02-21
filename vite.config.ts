@@ -10,12 +10,19 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts: ["localhost", "ape-allowing-lightly.ngrok-free.app"],
     proxy: {
       "/socket.io": {
         target: "http://localhost:3001",
         ws: true,
+        configure: (proxy) => {
+          // Suppress noisy EPIPE/ECONNRESET errors from normal WS disconnects
+          proxy.on("error", () => {});
+          proxy.on("proxyReqWs", (_proxyReq, _req, socket) => {
+            socket.on("error", () => {});
+          });
+        },
       },
     },
-    allowedHosts: ["localhost", "ape-allowing-lightly.ngrok-free.app"],
   },
 });

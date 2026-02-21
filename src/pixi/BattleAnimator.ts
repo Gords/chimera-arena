@@ -46,17 +46,17 @@ export class BattleAnimator {
     const stageWidth = app.screen.width;
     const stageHeight = app.screen.height;
 
-    // 1. Ability name flash on screen
-    await showAbilityName(container, card.name, stageWidth, stageHeight);
-
-    // 2. Card fly-in animation
-    await animateCardToCenter(
-      container,
-      card.name,
-      card.type,
-      stageWidth,
-      stageHeight
-    );
+    // 1 + 2. Ability name flash and card fly-in run in parallel (~500ms)
+    await Promise.all([
+      showAbilityName(container, card.name, stageWidth, stageHeight, 500),
+      animateCardToCenter(
+        container,
+        card.name,
+        card.type,
+        stageWidth,
+        stageHeight
+      ),
+    ]);
 
     // 3. Attacker animation based on card type
     if (card.type === 'special') {
@@ -67,6 +67,9 @@ export class BattleAnimator {
       await attacker.defendAnimation();
     }
 
+    // 4-7. Result effects run in parallel where possible
+    const resultEffects: Promise<void>[] = [];
+
     // 4. Damage effects on defender
     if (result.damage > 0) {
       spawnPixelParticles(
@@ -76,7 +79,7 @@ export class BattleAnimator {
         'hit'
       );
       screenShake(app.stage, Math.min(result.damage / 5, 10));
-      await defender.hurtAnimation();
+      resultEffects.push(defender.hurtAnimation());
       showDamageNumber(
         container,
         defender.sprite.x,
@@ -86,7 +89,7 @@ export class BattleAnimator {
       );
     }
 
-    // 5. Shield effects on attacker
+    // 5. Shield effects on attacker (fires alongside damage)
     if (result.shieldGained > 0) {
       spawnPixelParticles(
         container,
@@ -103,7 +106,7 @@ export class BattleAnimator {
       );
     }
 
-    // 6. Healing effects on attacker
+    // 6. Healing effects on attacker (fires alongside damage)
     if (result.healing > 0) {
       spawnPixelParticles(
         container,
@@ -120,7 +123,7 @@ export class BattleAnimator {
       );
     }
 
-    // 7. Status effect particles on defender
+    // 7. Status effect particles on defender (fires alongside damage)
     if (result.effectApplied) {
       spawnPixelParticles(
         container,
@@ -130,9 +133,13 @@ export class BattleAnimator {
       );
     }
 
-    // 8. Reflect damage back to attacker
+    // Wait for all parallel result animations
+    if (resultEffects.length > 0) {
+      await Promise.all(resultEffects);
+    }
+
+    // 8. Reflect damage back to attacker (must follow damage)
     if (result.reflectDamage && result.reflectDamage > 0) {
-      await new Promise((r) => setTimeout(r, 200));
       spawnPixelParticles(
         container,
         attacker.sprite.x,
@@ -149,7 +156,7 @@ export class BattleAnimator {
       );
     }
 
-    // 9. Mana drain display
+    // 9. Mana drain display (fires alongside reflect if present)
     if (result.manaDrained && result.manaDrained > 0) {
       spawnPixelParticles(
         container,
@@ -166,8 +173,8 @@ export class BattleAnimator {
       );
     }
 
-    // 10. Brief pause before next action
-    await new Promise((r) => setTimeout(r, 500));
+    // 10. Brief pause before next action (reduced from 500ms)
+    await new Promise((r) => setTimeout(r, 250));
   }
 
   /**

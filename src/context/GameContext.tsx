@@ -9,6 +9,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 import { useSocket } from './SocketContext';
@@ -67,9 +68,16 @@ export function GameProvider({ children }: GameProviderProps) {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Battle state is tracked separately so lightweight battle:state
+  // events can update it without needing a full room re-serialization.
+  const [liveBattleState, setLiveBattleState] = useState<BattleState | null>(null);
+
+  // Latency tracking: timestamp of last outgoing action
+  const actionTimestamp = useRef<number>(0);
+
   // Derived state
   const phase = room?.phase ?? null;
-  const battleState = room?.battleState ?? null;
+  const battleState = liveBattleState ?? room?.battleState ?? null;
   const chimeras = room?.chimeras ?? null;
   const myTeam = player?.team ?? null;
 
@@ -129,11 +137,28 @@ export function GameProvider({ children }: GameProviderProps) {
 
     const onPhaseResult = (data: { winner: Team; battleLog: BattleLogEntry[] }) => {
       setWinner(data.winner);
+      setLiveBattleState(null);
     };
 
     const onPhaseLobby = (_data: { round: number }) => {
       setWinner(null);
       setGenerating(false);
+      setLiveBattleState(null);
+    };
+
+    // Lightweight battle state updates (sent during battle instead of
+    // full room state to avoid resending base64 sprites every action)
+    const onBattleState = (data: BattleState) => {
+      setLiveBattleState(data);
+
+      // Log round-trip time if we have an outgoing timestamp
+      if (actionTimestamp.current > 0) {
+        const rtt = performance.now() - actionTimestamp.current;
+        actionTimestamp.current = 0;
+        if (import.meta.env.DEV) {
+          console.log(`[battle] action round-trip: ${rtt.toFixed(1)}ms`);
+        }
+      }
     };
 
     // Battle events
@@ -156,6 +181,7 @@ export function GameProvider({ children }: GameProviderProps) {
     socket.on('phase:battle', onPhaseBattle);
     socket.on('phase:result', onPhaseResult);
     socket.on('phase:lobby', onPhaseLobby);
+    socket.on('battle:state', onBattleState);
     socket.on('battle:error', onBattleError);
 
     return () => {
@@ -169,6 +195,7 @@ export function GameProvider({ children }: GameProviderProps) {
       socket.off('phase:battle', onPhaseBattle);
       socket.off('phase:result', onPhaseResult);
       socket.off('phase:lobby', onPhaseLobby);
+      socket.off('battle:state', onBattleState);
       socket.off('battle:error', onBattleError);
     };
   }, [socket, myTeam]);
@@ -220,6 +247,7 @@ export function GameProvider({ children }: GameProviderProps) {
     (cardId: string) => {
       if (!socket || !room) return;
       setError(null);
+      actionTimestamp.current = performance.now();
       socket.emit('battle:play_card', { roomId: room.id, cardId });
     },
     [socket, room]
@@ -227,6 +255,7 @@ export function GameProvider({ children }: GameProviderProps) {
 
   const endTurn = useCallback(() => {
     if (!socket || !room) return;
+    actionTimestamp.current = performance.now();
     socket.emit('battle:end_turn', { roomId: room.id });
   }, [socket, room]);
 

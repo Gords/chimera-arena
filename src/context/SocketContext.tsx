@@ -1,6 +1,6 @@
 // ============================================================
 // Chimera Arena - Socket.IO Context
-// Provides a shared socket instance + connection status
+// Provides a shared socket instance + connection status + latency
 // ============================================================
 
 import React, {
@@ -13,16 +13,22 @@ import React, {
 } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
+// In dev, Vite proxies /socket.io to localhost:3001 (see vite.config.ts),
+// so same-origin works for both localhost and ngrok.
+// In production, Express serves the client so same-origin also works.
+
 // ---- Context shape ----
 
 interface SocketContextValue {
   socket: Socket | null;
   connected: boolean;
+  latency: number;
 }
 
 const SocketContext = createContext<SocketContextValue>({
   socket: null,
   connected: false,
+  latency: 0,
 });
 
 // ---- Provider ----
@@ -34,6 +40,7 @@ interface SocketProviderProps {
 export function SocketProvider({ children }: SocketProviderProps) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
+  const [latency, setLatency] = useState(0);
   // Guard against StrictMode double-mount
   const mountedRef = useRef(false);
 
@@ -41,9 +48,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
     if (mountedRef.current) return;
     mountedRef.current = true;
 
-    // Create the socket connection once.
-    // Vite's dev proxy forwards /socket.io to the game server
-    // (see vite.config.ts), so we connect to the same origin.
     const newSocket = io({
       autoConnect: true,
       reconnection: true,
@@ -70,13 +74,21 @@ export function SocketProvider({ children }: SocketProviderProps) {
       setConnected(false);
     });
 
-    newSocket.on('reconnect', (attempt: number) => {
-      console.log('[socket] reconnected after', attempt, 'attempts');
-    });
+    // Track ping/pong latency from the Socket.IO engine
+    const onPong = (ms: number) => {
+      setLatency(ms);
+      if (import.meta.env.DEV) {
+        console.log(`[socket] ping: ${ms}ms`);
+      }
+    };
 
-    newSocket.on('reconnect_attempt', (attempt: number) => {
-      console.log('[socket] reconnect attempt', attempt);
-    });
+    const attachPong = () => {
+      (newSocket.io.engine as any)?.on('pong', onPong);
+    };
+
+    attachPong();
+    // Re-attach pong listener if engine reconnects
+    newSocket.io.on('open', attachPong);
 
     return () => {
       newSocket.removeAllListeners();
@@ -87,7 +99,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   }, []);
 
   return (
-    <SocketContext.Provider value={{ socket, connected }}>
+    <SocketContext.Provider value={{ socket, connected, latency }}>
       {children}
     </SocketContext.Provider>
   );
