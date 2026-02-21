@@ -75,9 +75,9 @@ function createFallbackChimera(parts: BuildParts): Chimera {
     sprite: '',
     stats: { maxHp: 150, hp: 150, maxMana: 4, mana: 2, manaRegen: 2 },
     cards: [
-      { id: 'card_1', name: 'Claw Strike', description: 'A vicious claw attack.', manaCost: 2, damage: 20, healing: 0, shield: 0, effect: null, effectDuration: 0, cooldown: 0, cardArt: '', type: 'attack' },
-      { id: 'card_2', name: 'Iron Hide', description: 'Harden your defenses.', manaCost: 2, damage: 0, healing: 0, shield: 18, effect: 'reflect', effectDuration: 1, cooldown: 2, cardArt: '', type: 'defense' },
-      { id: 'card_3', name: 'Toxic Blast', description: 'Unleash a poisonous explosion.', manaCost: 4, damage: 35, healing: 0, shield: 0, effect: 'poison', effectDuration: 2, cooldown: 3, cardArt: '', type: 'special' },
+      { id: 'card_1', name: 'Claw Strike', description: 'A vicious claw attack.', manaCost: 2, damage: 20, healing: 0, shield: 0, effect: null, effectDuration: 0, cooldown: 0, cardArt: '', attackSprite: '', type: 'attack' },
+      { id: 'card_2', name: 'Iron Hide', description: 'Harden your defenses.', manaCost: 2, damage: 0, healing: 0, shield: 18, effect: 'reflect', effectDuration: 1, cooldown: 2, cardArt: '', attackSprite: '', type: 'defense' },
+      { id: 'card_3', name: 'Toxic Blast', description: 'Unleash a poisonous explosion.', manaCost: 4, damage: 35, healing: 0, shield: 0, effect: 'poison', effectDuration: 2, cooldown: 3, cardArt: '', attackSprite: '', type: 'special' },
     ],
     passiveAbility: { name: 'Thick Scales', description: 'Reduces incoming damage slightly.', trigger: 'on_turn_start', effect: 'reduce_damage:3' },
     weaknesses: ['ice', 'lightning'],

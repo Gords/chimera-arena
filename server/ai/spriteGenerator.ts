@@ -40,7 +40,7 @@ Subject: `;
  * corner color and flood-filling from edges. Works regardless of what
  * background color the AI actually generates.
  */
-async function removeBackground(imageBuffer: Buffer): Promise<Buffer> {
+export async function removeBackground(imageBuffer: Buffer): Promise<Buffer> {
   const { data, info } = await sharp(imageBuffer)
     .ensureAlpha()
     .raw()

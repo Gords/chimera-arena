@@ -44,6 +44,7 @@ export interface AbilityCard {
   effectDuration: number;
   cooldown: number; // turns before reuse
   cardArt: string; // base64 image data
+  attackSprite: string; // base64 spritesheet (4-frame horizontal strip)
   type: CardType;
 }
 
