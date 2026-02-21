@@ -44,6 +44,7 @@ export interface AbilityCard {
   effectDuration: number;
   cooldown: number; // turns before reuse
   cardArt: string; // base64 image data
+  attackSprite: string; // base64 spritesheet (4-frame horizontal strip)
   type: CardType;
 }
 
@@ -138,6 +139,7 @@ export interface Room {
   buildParts: { red: Partial<BuildParts>; blue: Partial<BuildParts> };
   battleState: BattleState | null;
   accepted: { red: boolean; blue: boolean };
+  battleBackground: string;
 }
 
 // ---- Serialized Room (for socket emission) ----
@@ -159,4 +161,5 @@ export interface SerializedRoom {
   buildParts: { red: Partial<BuildParts>; blue: Partial<BuildParts> };
   battleState: BattleState | null;
   accepted: { red: boolean; blue: boolean };
+  battleBackground: string;
 }

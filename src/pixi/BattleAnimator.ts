@@ -3,6 +3,7 @@ import { spawnPixelParticles } from './PixelParticles.js';
 import { showDamageNumber } from './DamageNumbers.js';
 import { screenShake } from './ScreenShake.js';
 import { animateCardToCenter, showAbilityName } from './CardAnimation.js';
+import { playAttackAnimation } from './AttackSpriteAnimator.js';
 import type { AbilityCard, CardResult } from '../types.js';
 
 export class BattleAnimator {
@@ -65,6 +66,30 @@ export class BattleAnimator {
       await attacker.attackAnimation(!isPlayerAttacking);
     } else {
       await attacker.defendAnimation();
+    }
+
+    // 3.5. Attack sprite animation (AI-generated spritesheet)
+    if (card.attackSprite) {
+      let animX: number;
+      let animY: number;
+
+      if (card.type === 'attack' || card.type === 'special') {
+        // Attack/special effects appear on the defender
+        animX = defender.sprite.x;
+        animY = defender.sprite.y - 60;
+      } else {
+        // Defense effects appear on the attacker (self-buff)
+        animX = attacker.sprite.x;
+        animY = attacker.sprite.y - 60;
+      }
+
+      await playAttackAnimation({
+        spritesheetBase64: card.attackSprite,
+        container,
+        x: animX,
+        y: animY,
+        animationSpeed: 0.12,
+      });
     }
 
     // 4-7. Damage, shield, heal, status effects fire in parallel

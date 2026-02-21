@@ -59,7 +59,8 @@ Respond ONLY in this JSON:
       "effectDuration": number,
       "cooldown": number,
       "type": "attack" | "defense" | "special",
-      "cardArt": "string (short pixel art description for the card illustration)"
+      "cardArt": "string (short pixel art description for the card illustration)",
+      "attackSpritePrompt": "string (describe the attack ANIMATION as a 4-frame sequence for a pixel art spritesheet. Frame 1: wind-up/charging, Frame 2: release/launch, Frame 3: peak impact, Frame 4: dissipation/aftermath. Example for a fire attack: 'Frame 1: small flame spark gathering, Frame 2: fireball forming and launching rightward, Frame 3: large fireball explosion with debris, Frame 4: scattered embers and smoke fading'. Keep each frame description to 5-10 words. Match the card element and damage type.)"
     }
   ],
   "passiveAbility": {
@@ -143,6 +144,7 @@ interface RawCard {
   cooldown?: number;
   type?: unknown;
   cardArt?: string;
+  attackSpritePrompt?: string;
 }
 
 interface RawChimeraResponse {
@@ -167,7 +169,7 @@ interface RawChimeraResponse {
 function validateCard(
   raw: RawCard,
   index: number,
-): Omit<AbilityCard, "cardArt"> & { cardArt: string } {
+): Omit<AbilityCard, "cardArt" | "attackSprite"> & { cardArt: string; attackSpritePrompt: string } {
   return {
     id: raw.id || `card_${index + 1}`,
     name: raw.name || `Ability ${index + 1}`,
@@ -181,6 +183,7 @@ function validateCard(
     cooldown: clamp(raw.cooldown ?? 0, 0, 5),
     type: validateCardType(raw.type),
     cardArt: raw.cardArt || "A glowing magical orb with sparks",
+    attackSpritePrompt: raw.attackSpritePrompt || "Frame 1: energy gathering, Frame 2: energy launching rightward, Frame 3: impact explosion, Frame 4: energy fading away",
   };
 }
 
@@ -190,6 +193,7 @@ function validateChimeraResponse(raw: RawChimeraResponse): {
   };
   spritePrompt: string;
   cardArtPrompts: string[];
+  attackSpritePrompts: string[];
 } {
   const cards = (raw.cards || []).slice(0, 3);
   while (cards.length < 3) {
@@ -217,10 +221,12 @@ function validateChimeraResponse(raw: RawChimeraResponse): {
   // but at this stage it's a text prompt). We store the art prompts in the cardArt field temporarily;
   // the orchestrator will replace them with actual image data.
   const cardArtPrompts = validatedCards.map((c) => c.cardArt);
+  const attackSpritePrompts = validatedCards.map((c) => c.attackSpritePrompt);
 
-  const chimeraCards: AbilityCard[] = validatedCards.map((c) => ({
+  const chimeraCards: AbilityCard[] = validatedCards.map(({ attackSpritePrompt: _, ...c }) => ({
     ...c,
     cardArt: "", // placeholder - will be filled by sprite generator
+    attackSprite: "", // placeholder - will be filled by attack sprite generator
   }));
 
   return {
@@ -252,6 +258,7 @@ function validateChimeraResponse(raw: RawChimeraResponse): {
       raw.spritePrompt ||
       "A 16-bit pixel art chimera creature, idle battle pose",
     cardArtPrompts,
+    attackSpritePrompts,
   };
 }
 
@@ -263,6 +270,7 @@ export interface ChimeraGeneratorResult {
   };
   spritePrompt: string;
   cardArtPrompts: string[];
+  attackSpritePrompts: string[];
 }
 
 export async function generateChimeraStats(
@@ -300,6 +308,7 @@ Generate the chimera JSON now.`;
         chimera: validated.chimera,
         spritePrompt: validated.spritePrompt,
         cardArtPrompts: validated.cardArtPrompts,
+        attackSpritePrompts: validated.attackSpritePrompts,
       };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));

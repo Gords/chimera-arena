@@ -5,6 +5,7 @@
 import type { Chimera, BuildParts } from '../types.js';
 import { generateChimeraStats } from './chimeraGenerator.js';
 import { generateChimeraSprite, generateCardArt } from './spriteGenerator.js';
+import { generateAttackSprite } from './attackSpriteGenerator.js';
 
 /**
  * Orchestrates the full chimera generation pipeline:
@@ -15,17 +16,22 @@ import { generateChimeraSprite, generateCardArt } from './spriteGenerator.js';
 export async function generateFullChimera(parts: BuildParts): Promise<Chimera> {
   // Step 1: Generate stats, cards, and get sprite/card art prompts
   console.log('[GenerateChimera] Generating chimera stats and cards...');
-  const { chimera: chimeraData, spritePrompt, cardArtPrompts } =
+  const { chimera: chimeraData, spritePrompt, cardArtPrompts, attackSpritePrompts } =
     await generateChimeraStats(parts);
 
   // Step 2: Generate all images in parallel
-  // 1 chimera sprite + 3 card art images = 4 parallel requests
-  console.log('[GenerateChimera] Generating images in parallel (1 sprite + 3 card arts)...');
+  // 1 chimera sprite + 3 card art + 3 attack spritesheets = 7 parallel requests
+  console.log('[GenerateChimera] Generating images in parallel (1 sprite + 3 card arts + 3 attack sprites)...');
 
-  const [spriteResult, ...cardArtResults] = await Promise.all([
+  const [spriteResult, ...imageResults] = await Promise.all([
     generateChimeraSprite(spritePrompt),
     ...cardArtPrompts.map((prompt) => generateCardArt(prompt)),
+    ...attackSpritePrompts.map((prompt) => generateAttackSprite(prompt)),
   ]);
+
+  // imageResults: indices 0-2 are card art, indices 3-5 are attack sprites
+  const cardArtResults = imageResults.slice(0, 3);
+  const attackSpriteResults = imageResults.slice(3, 6);
 
   // Step 3: Assemble the final Chimera object
   const sprite = spriteResult.base64
@@ -38,9 +44,15 @@ export async function generateFullChimera(parts: BuildParts): Promise<Chimera> {
       ? `data:${artResult.mimeType};base64,${artResult.base64}`
       : '';
 
+    const attackResult = attackSpriteResults[index];
+    const attackSprite = attackResult?.base64
+      ? `data:${attackResult.mimeType};base64,${attackResult.base64}`
+      : '';
+
     return {
       ...card,
       cardArt,
+      attackSprite,
     };
   });
 

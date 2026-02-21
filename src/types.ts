@@ -45,6 +45,7 @@ export interface AbilityCard {
   effectDuration: number;
   cooldown: number;
   cardArt: string;
+  attackSprite: string; // base64 spritesheet (4-frame horizontal strip)
   type: CardType;
 }
 
@@ -139,4 +140,5 @@ export interface SerializedRoom {
   buildParts: { red: Partial<BuildParts>; blue: Partial<BuildParts> };
   battleState: BattleState | null;
   accepted: { red: boolean; blue: boolean };
+  battleBackground: string;
 }

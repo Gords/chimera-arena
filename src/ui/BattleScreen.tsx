@@ -5,6 +5,8 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useGame } from '../context/GameContext';
+import { useSocket } from '../context/SocketContext';
+import { useBattleCanvas } from '../hooks/useBattleCanvas';
 import HPBar from './components/HPBar';
 import ManaBar from './components/ManaBar';
 import CardHand from './components/CardHand';
@@ -16,6 +18,7 @@ const TURN_DURATION = 15;
 
 export default function BattleScreen() {
   const { room, myTeam, chimeras, battleState, playCard, endTurn } = useGame();
+  const { socket } = useSocket();
 
   const [logOpen, setLogOpen] = useState(false);
   const [turnTimer, setTurnTimer] = useState(TURN_DURATION);
@@ -27,6 +30,10 @@ export default function BattleScreen() {
 
   const myChimera: Chimera | null = chimeras?.[myTeam!] ?? null;
   const enemyChimera: Chimera | null = chimeras?.[enemyTeam] ?? null;
+
+  // Mount PixiJS battle canvas with attack sprite animations
+  const battleBackground = room?.battleBackground ?? '';
+  useBattleCanvas(canvasRef, socket, myTeam, myChimera, enemyChimera, battleBackground);
 
   const myBattleState: ChimeraBattleState | null = useMemo(() => {
     if (!battleState || !myTeam) return null;
@@ -145,139 +152,13 @@ export default function BattleScreen() {
         />
       </div>
 
-      {/* ---- Middle: Arena canvas ---- */}
+      {/* ---- Middle: Arena canvas (PixiJS mounts here) ---- */}
       <div className="battle-arena">
-        <div id="battle-canvas" ref={canvasRef}>
-          {/* Pixi.js mounts here. Fallback display: */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-end',
-              justifyContent: 'space-around',
-              width: '100%',
-              height: '100%',
-              minHeight: 320,
-              background:
-                'linear-gradient(180deg, #0a0a20 0%, #1a1a3e 50%, #0f2020 100%)',
-              padding: '20px 40px',
-            }}
-          >
-            {/* Your chimera sprite */}
-            <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-              {myChimera.sprite ? (
-                <img
-                  src={
-                    myChimera.sprite.startsWith('data:')
-                      ? myChimera.sprite
-                      : `data:image/png;base64,${myChimera.sprite}`
-                  }
-                  alt={myChimera.name}
-                  style={{
-                    maxHeight: '80%',
-                    maxWidth: '100%',
-                    objectFit: 'contain',
-                    imageRendering: 'pixelated',
-                    animation: 'float 3s ease-in-out infinite',
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 128,
-                    height: 128,
-                    background: 'var(--bg-secondary)',
-                    border: '3px solid var(--pixel-border)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 8,
-                    color: 'var(--text-muted)',
-                  }}
-                >
-                  YOUR
-                  <br />
-                  CHIMERA
-                </div>
-              )}
-              <div
-                style={{
-                  fontSize: 7,
-                  color: myTeam === 'red' ? 'var(--team-red)' : 'var(--team-blue)',
-                  marginTop: 4,
-                }}
-              >
-                {myChimera.name}
-              </div>
-            </div>
-
-            {/* VS indicator */}
-            <div
-              style={{
-                fontSize: 16,
-                color: 'var(--accent-gold)',
-                textShadow: '0 0 10px rgba(255, 215, 0, 0.5)',
-                alignSelf: 'center',
-                flexShrink: 0,
-                padding: '0 10px',
-              }}
-            >
-              VS
-            </div>
-
-            {/* Enemy chimera sprite */}
-            <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-              {enemyChimera.sprite ? (
-                <img
-                  src={
-                    enemyChimera.sprite.startsWith('data:')
-                      ? enemyChimera.sprite
-                      : `data:image/png;base64,${enemyChimera.sprite}`
-                  }
-                  alt={enemyChimera.name}
-                  style={{
-                    maxHeight: '80%',
-                    maxWidth: '100%',
-                    objectFit: 'contain',
-                    imageRendering: 'pixelated',
-                    animation: 'float 3s ease-in-out infinite',
-                    animationDelay: '1.5s',
-                    transform: 'scaleX(-1)',
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 128,
-                    height: 128,
-                    background: 'var(--bg-secondary)',
-                    border: '3px solid var(--pixel-border)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 8,
-                    color: 'var(--text-muted)',
-                  }}
-                >
-                  ENEMY
-                  <br />
-                  CHIMERA
-                </div>
-              )}
-              <div
-                style={{
-                  fontSize: 7,
-                  color:
-                    enemyTeam === 'red'
-                      ? 'var(--team-red)'
-                      : 'var(--team-blue)',
-                  marginTop: 4,
-                }}
-              >
-                {enemyChimera.name}
-              </div>
-            </div>
-          </div>
-        </div>
+        <div
+          id="battle-canvas"
+          ref={canvasRef}
+          style={{ width: '100%', height: '100%' }}
+        />
       </div>
 
       {/* ---- Bottom: Your info + cards ---- */}
