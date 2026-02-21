@@ -29,7 +29,7 @@ app.use(express.json());
 
 // In production, serve the built Vite client
 if (IS_PRODUCTION) {
-  const clientDist = path.resolve(__dirname, '..', 'dist');
+  const clientDist = path.resolve(__dirname, '..');
   app.use(express.static(clientDist));
 
   // SPA fallback
