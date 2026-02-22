@@ -51,51 +51,78 @@ export function SocketProvider({ children }: SocketProviderProps) {
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
+      reconnectionDelay: 750,
       reconnectionDelayMax: 5000,
+      randomizationFactor: 0.5,
+      timeout: 10000,
       transports: ['websocket', 'polling'],
     });
 
     setSocket(newSocket);
 
-    newSocket.on('connect', () => {
+    const onConnect = () => {
       console.log('[socket] connected:', newSocket.id);
       setConnected(true);
-    });
+    };
 
-    newSocket.on('disconnect', (reason) => {
+    const onDisconnect = (reason: Socket.DisconnectReason) => {
       console.log('[socket] disconnected:', reason);
       setConnected(false);
-    });
+    };
 
-    newSocket.on('connect_error', (err) => {
+    const onConnectError = (err: Error) => {
       console.warn('[socket] connect_error:', err.message);
       setConnected(false);
-    });
+    };
 
-    newSocket.on('reconnect', (attempt: number) => {
+    const onReconnect = (attempt: number) => {
       console.log('[socket] reconnected after', attempt, 'attempts');
-    });
+    };
 
-    newSocket.on('reconnect_attempt', (attempt: number) => {
+    const onReconnectAttempt = (attempt: number) => {
       console.log('[socket] reconnect attempt', attempt);
-    });
+    };
+
+    const onReconnectError = (err: Error) => {
+      console.warn('[socket] reconnect_error:', err.message);
+    };
+
+    const onReconnectFailed = () => {
+      console.warn('[socket] reconnect_failed');
+      setConnected(false);
+    };
 
     // Ping/pong latency tracking
     let pingStart = 0;
-    newSocket.io.on('ping', () => {
+    const onPing = () => {
       pingStart = performance.now();
-    });
-    newSocket.io.on('pong', () => {
+    };
+    const onPong = () => {
       const ms = Math.round(performance.now() - pingStart);
       console.log(`[socket] ping: ${ms}ms`);
       setLatency(ms);
-    });
+    };
+
+    newSocket.on('connect', onConnect);
+    newSocket.on('disconnect', onDisconnect);
+    newSocket.on('connect_error', onConnectError);
+    newSocket.io.on('reconnect', onReconnect);
+    newSocket.io.on('reconnect_attempt', onReconnectAttempt);
+    newSocket.io.on('reconnect_error', onReconnectError);
+    newSocket.io.on('reconnect_failed', onReconnectFailed);
+    newSocket.io.on('ping', onPing);
+    newSocket.io.on('pong', onPong);
 
     return () => {
-      newSocket.io.off('ping');
-      newSocket.io.off('pong');
-      newSocket.removeAllListeners();
+      newSocket.off('connect', onConnect);
+      newSocket.off('disconnect', onDisconnect);
+      newSocket.off('connect_error', onConnectError);
+      newSocket.io.off('reconnect', onReconnect);
+      newSocket.io.off('reconnect_attempt', onReconnectAttempt);
+      newSocket.io.off('reconnect_error', onReconnectError);
+      newSocket.io.off('reconnect_failed', onReconnectFailed);
+      newSocket.io.off('ping', onPing);
+      newSocket.io.off('pong', onPong);
       newSocket.close();
       setSocket(null);
       mountedRef.current = false;

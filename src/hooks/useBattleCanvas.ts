@@ -47,13 +47,18 @@ export function useBattleCanvas(
     stageRef.current = stage;
 
     stage.init(canvas).then(async () => {
-      // Use the ref so we get the latest background value
-      await stage.setArenaBackground(bgRef.current);
+      const preloadTasks: Promise<unknown>[] = [
+        // Use the ref so we get the latest background value
+        stage.setArenaBackground(bgRef.current),
+      ];
 
-      // Load chimera sprites (empty string handled gracefully by PixiJS)
+      // Load both chimera sprites in parallel with background setup
+      // (empty string handled gracefully by PixiJS)
       if (myChimera.sprite && enemyChimera.sprite) {
-        await stage.loadChimeras(myChimera.sprite, enemyChimera.sprite);
+        preloadTasks.push(stage.loadChimeras(myChimera.sprite, enemyChimera.sprite));
       }
+
+      await Promise.all(preloadTasks);
 
       // Create animation pipeline
       const animator = new BattleAnimator(stage);
@@ -77,6 +82,7 @@ export function useBattleCanvas(
       readyRef.current = false;
       controllerRef.current?.destroy();
       controllerRef.current = null;
+      stageRef.current?.destroy();
       stageRef.current = null;
     };
   }, [myTeam, myChimera, enemyChimera]);

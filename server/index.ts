@@ -21,6 +21,7 @@ const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT) || 3001;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const DISCONNECT_GRACE_MS = 15_000;
 
 // ---- Express ----
 
@@ -54,12 +55,58 @@ const io = new Server(httpServer, {
       : ['http://localhost:5173', 'http://127.0.0.1:5173'],
     methods: ['GET', 'POST'],
   },
+  transports: ['websocket', 'polling'],
+  pingInterval: 10_000,
+  pingTimeout: 20_000,
+  connectionStateRecovery: {
+    maxDisconnectionDuration: DISCONNECT_GRACE_MS,
+    skipMiddlewares: true,
+  },
 });
 
 // ---- Managers ----
 
 const roomManager = new RoomManager();
 const gameManager = new GameManager(io);
+const disconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+
+function clearDisconnectTimer(socketId: string): void {
+  const timer = disconnectTimers.get(socketId);
+  if (!timer) return;
+  clearTimeout(timer);
+  disconnectTimers.delete(socketId);
+}
+
+function removeDisconnectedPlayer(socketId: string): void {
+  const room = roomManager.findRoomBySocket(socketId);
+  if (!room) return;
+
+  const updatedRoom = roomManager.leaveRoom(room.id, socketId);
+  if (!updatedRoom) return;
+
+  const serialized = serializeRoom(updatedRoom);
+  io.to(updatedRoom.id).emit('room:state', serialized);
+  io.to(updatedRoom.id).emit('room:player_left', { socketId });
+}
+
+function scheduleDisconnectCleanup(socketId: string, reason: string): void {
+  clearDisconnectTimer(socketId);
+
+  disconnectTimers.set(
+    socketId,
+    setTimeout(() => {
+      disconnectTimers.delete(socketId);
+
+      // Player already recovered connection before grace period ended.
+      if (io.sockets.sockets.has(socketId)) return;
+
+      console.log(
+        `[disconnect:cleanup] removing ${socketId} after ${DISCONNECT_GRACE_MS}ms (${reason})`,
+      );
+      removeDisconnectedPlayer(socketId);
+    }, DISCONNECT_GRACE_MS),
+  );
+}
 
 // ============================================================
 // Socket event handlers
@@ -67,6 +114,13 @@ const gameManager = new GameManager(io);
 
 io.on('connection', (socket) => {
   console.log(`[connect] ${socket.id}`);
+  clearDisconnectTimer(socket.id);
+
+  const existingRoom = roomManager.findRoomBySocket(socket.id);
+  if (existingRoom) {
+    socket.join(existingRoom.id);
+    socket.emit('room:state', serializeRoom(existingRoom));
+  }
 
   // ----------------------------------------------------------
   // room:create
@@ -165,6 +219,38 @@ io.on('connection', (socket) => {
       gameManager.startGame(room);
     }
 
+    if (typeof ack === 'function') ack({ ok: true });
+  });
+
+  // ----------------------------------------------------------
+  // room:start (host can force-start once everyone is ready)
+  // ----------------------------------------------------------
+  socket.on('room:start', (ack) => {
+    const room = roomManager.findRoomBySocket(socket.id);
+    if (!room) {
+      if (typeof ack === 'function') ack({ ok: false, error: 'Not in a room.' });
+      return;
+    }
+
+    if (room.phase !== 'lobby') {
+      if (typeof ack === 'function')
+        ack({ ok: false, error: 'Game already started.' });
+      return;
+    }
+
+    const isHost = room.teams.red[0] === socket.id;
+    if (!isHost) {
+      if (typeof ack === 'function') ack({ ok: false, error: 'Only host can start.' });
+      return;
+    }
+
+    if (!roomManager.canStart(room.id)) {
+      if (typeof ack === 'function')
+        ack({ ok: false, error: 'Need 2+ ready players to start.' });
+      return;
+    }
+
+    gameManager.startGame(room);
     if (typeof ack === 'function') ack({ ok: true });
   });
 
@@ -330,29 +416,32 @@ io.on('connection', (socket) => {
   // ----------------------------------------------------------
   // result:return_to_lobby
   // ----------------------------------------------------------
-  socket.on('result:return_to_lobby', () => {
+  const onReturnToLobby = () => {
     const room = roomManager.findRoomBySocket(socket.id);
     if (!room || room.phase !== 'result') return;
     gameManager.returnToLobby(room);
-  });
+  };
+
+  socket.on('result:return_to_lobby', onReturnToLobby);
+  socket.on('room:return_to_lobby', onReturnToLobby);
 
   // ----------------------------------------------------------
   // Disconnect
   // ----------------------------------------------------------
-  socket.on('disconnect', () => {
-    console.log(`[disconnect] ${socket.id}`);
+  socket.on('disconnect', (reason) => {
+    console.log(`[disconnect] ${socket.id} (${reason})`);
 
-    const room = roomManager.findRoomBySocket(socket.id);
-    if (!room) return;
-
-    const updatedRoom = roomManager.leaveRoom(room.id, socket.id);
-    if (updatedRoom) {
-      const serialized = serializeRoom(updatedRoom);
-      io.to(updatedRoom.id).emit('room:state', serialized);
-      io.to(updatedRoom.id).emit('room:player_left', {
-        socketId: socket.id,
-      });
+    // Manual disconnects should be applied immediately.
+    if (
+      reason === 'client namespace disconnect' ||
+      reason === 'server namespace disconnect'
+    ) {
+      clearDisconnectTimer(socket.id);
+      removeDisconnectedPlayer(socket.id);
+      return;
     }
+
+    scheduleDisconnectCleanup(socket.id, reason);
   });
 });
 

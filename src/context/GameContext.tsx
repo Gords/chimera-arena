@@ -7,6 +7,7 @@ import React, {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   useCallback,
   type ReactNode,
@@ -73,6 +74,11 @@ export function GameProvider({ children }: GameProviderProps) {
   const battleState = liveBattleState ?? room?.battleState ?? null;
   const chimeras = room?.chimeras ?? null;
   const myTeam = player?.team ?? null;
+  const myTeamRef = useRef<Team | null>(null);
+
+  useEffect(() => {
+    myTeamRef.current = myTeam;
+  }, [myTeam]);
 
   // ---- Server event listeners ----
 
@@ -149,7 +155,7 @@ export function GameProvider({ children }: GameProviderProps) {
 
     // Battle events
     const onBattleError = (data: { team: Team; message: string }) => {
-      if (data.team === myTeam) {
+      if (data.team === myTeamRef.current) {
         setError(data.message);
         // Auto-clear battle errors after 3 seconds
         setTimeout(() => setError(null), 3000);
@@ -184,7 +190,7 @@ export function GameProvider({ children }: GameProviderProps) {
       socket.off('battle:state', onBattleState);
       socket.off('battle:error', onBattleError);
     };
-  }, [socket, myTeam]);
+  }, [socket]);
 
   // ---- Actions ----
 
@@ -246,7 +252,7 @@ export function GameProvider({ children }: GameProviderProps) {
 
   const returnToLobby = useCallback(() => {
     if (!socket || !room) return;
-    socket.emit('room:return_to_lobby', { roomId: room.id });
+    socket.emit('result:return_to_lobby', { roomId: room.id });
   }, [socket, room]);
 
   const clearError = useCallback(() => {

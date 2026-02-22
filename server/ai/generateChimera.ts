@@ -7,6 +7,17 @@ import { generateChimeraStats } from './chimeraGenerator.js';
 import { generateChimeraSprite, generateCardArt } from './spriteGenerator.js';
 import { generateAttackSprite } from './attackSpriteGenerator.js';
 
+type GeneratedImage = { base64: string; mimeType: string };
+
+function getSettledImage(
+  result: PromiseSettledResult<GeneratedImage>,
+  label: string,
+): GeneratedImage {
+  if (result.status === 'fulfilled') return result.value;
+  console.warn(`[GenerateChimera] ${label} failed:`, result.reason);
+  return { base64: '', mimeType: 'image/png' };
+}
+
 /**
  * Orchestrates the full chimera generation pipeline:
  * 1. Generate stats + cards via Gemini (text/JSON)
@@ -23,15 +34,29 @@ export async function generateFullChimera(parts: BuildParts): Promise<Chimera> {
   // 1 chimera sprite + 3 card art + 3 attack spritesheets = 7 parallel requests
   console.log('[GenerateChimera] Generating images in parallel (1 sprite + 3 card arts + 3 attack sprites)...');
 
-  const [spriteResult, ...imageResults] = await Promise.all([
+  const imageTasks: Promise<GeneratedImage>[] = [
     generateChimeraSprite(spritePrompt),
     ...cardArtPrompts.map((prompt) => generateCardArt(prompt)),
     ...attackSpritePrompts.map((prompt) => generateAttackSprite(prompt)),
-  ]);
+  ];
+  const settledImages = await Promise.allSettled(imageTasks);
 
-  // imageResults: indices 0-2 are card art, indices 3-5 are attack sprites
-  const cardArtResults = imageResults.slice(0, 3);
-  const attackSpriteResults = imageResults.slice(3, 6);
+  const spriteResult = getSettledImage(settledImages[0], 'sprite generation');
+
+  const cardArtStart = 1;
+  const attackSpriteStart = cardArtStart + cardArtPrompts.length;
+
+  const cardArtResults = settledImages
+    .slice(cardArtStart, attackSpriteStart)
+    .map((result, index) =>
+      getSettledImage(result, `card art ${index + 1} generation`),
+    );
+
+  const attackSpriteResults = settledImages
+    .slice(attackSpriteStart, attackSpriteStart + attackSpritePrompts.length)
+    .map((result, index) =>
+      getSettledImage(result, `attack sprite ${index + 1} generation`),
+    );
 
   // Step 3: Assemble the final Chimera object
   const sprite = spriteResult.base64

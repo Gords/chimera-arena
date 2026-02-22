@@ -107,9 +107,11 @@ export class ArenaStage {
     const h = this.app.screen.height;
     const groundY = h * 0.75;
 
-    // Convert base64 to PIXI textures
-    const playerTexture = await this._base64ToTexture(playerSpriteBase64);
-    const enemyTexture = await this._base64ToTexture(enemySpriteBase64);
+    // Convert base64 to PIXI textures in parallel
+    const [playerTexture, enemyTexture] = await Promise.all([
+      this._base64ToTexture(playerSpriteBase64),
+      this._base64ToTexture(enemySpriteBase64),
+    ]);
 
     // Scale sprites to fit ~40% of arena height
     const targetHeight = h * 0.4;
