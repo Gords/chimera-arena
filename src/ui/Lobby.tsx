@@ -9,7 +9,7 @@ import { useGame } from '../context/GameContext';
 type LobbyMode = 'menu' | 'create' | 'join';
 
 export default function Lobby() {
-  const { createRoom, joinRoom, error } = useGame();
+  const { createRoom, createSoloRoom, joinRoom, error } = useGame();
 
   const [mode, setMode] = useState<LobbyMode>('menu');
   const [playerName, setPlayerName] = useState('');
@@ -33,6 +33,12 @@ export default function Lobby() {
     if (!name || !code) return;
     joinRoom(code, name);
   }, [playerName, roomCode, joinRoom]);
+
+  const handleCreateSolo = useCallback(() => {
+    const name = playerName.trim();
+    if (!name) return;
+    createSoloRoom(name);
+  }, [playerName, createSoloRoom]);
 
   const handleCopyCode = useCallback(() => {
     if (createdCode) {
@@ -77,6 +83,16 @@ export default function Lobby() {
                 }}
               >
                 CREATE ROOM
+              </button>
+              <button
+                className="btn"
+                disabled={!playerName.trim()}
+                onClick={() => {
+                  setMode('create');
+                  handleCreateSolo();
+                }}
+              >
+                SOLO TEST
               </button>
               <button
                 className="btn btn-gold"

@@ -67,6 +67,7 @@ export default function WaitingRoom() {
           <span className="player-name">
             {p.name}
             {p.id === socket?.id ? ' (YOU)' : ''}
+            {p.isBot ? ' [BOT]' : ''}
           </span>
           <span className={p.ready ? 'player-ready' : 'player-not-ready'}>
             {p.ready ? 'READY' : 'NOT READY'}

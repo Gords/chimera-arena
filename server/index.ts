@@ -82,7 +82,19 @@ function removeDisconnectedPlayer(socketId: string): void {
   if (!room) return;
 
   const updatedRoom = roomManager.leaveRoom(room.id, socketId);
-  if (!updatedRoom) return;
+  if (!updatedRoom) {
+    gameManager.clearRoomTimers(room.id);
+    return;
+  }
+
+  const hasHumanPlayer = Array.from(updatedRoom.players.values()).some(
+    (player) => !player.isBot,
+  );
+  if (!hasHumanPlayer) {
+    gameManager.clearRoomTimers(updatedRoom.id);
+    roomManager.deleteRoom(updatedRoom.id);
+    return;
+  }
 
   const serialized = serializeRoom(updatedRoom);
   io.to(updatedRoom.id).emit('room:state', serialized);
@@ -147,6 +159,50 @@ io.on('connection', (socket) => {
       ack({ ok: true, room: serialized });
     }
     io.to(room.id).emit('room:state', serialized);
+  });
+
+  // ----------------------------------------------------------
+  // room:create_solo
+  // ----------------------------------------------------------
+  socket.on('room:create_solo', (data: { playerName: string }, ack) => {
+    const playerName = (data?.playerName || 'Player').trim().slice(0, 24);
+
+    const room = roomManager.createRoom();
+
+    const player: Player = {
+      id: socket.id,
+      name: playerName,
+      team: null,
+      ready: true,
+    };
+
+    roomManager.joinRoom(room.id, player);
+    socket.join(room.id);
+
+    const botId = `bot:${room.id}`;
+    const bot: Player = {
+      id: botId,
+      name: 'Arena Bot',
+      team: null,
+      ready: true,
+      isBot: true,
+    };
+    roomManager.joinRoom(room.id, bot);
+
+    const roomPlayer = room.players.get(socket.id);
+    if (roomPlayer) roomPlayer.ready = true;
+    const roomBot = room.players.get(botId);
+    if (roomBot) roomBot.ready = true;
+
+    console.log(`[room:create_solo] ${playerName} created solo room ${room.id}`);
+
+    const serialized = serializeRoom(room);
+    if (typeof ack === 'function') {
+      ack({ ok: true, room: serialized });
+    }
+    io.to(room.id).emit('room:state', serialized);
+
+    gameManager.startGame(room);
   });
 
   // ----------------------------------------------------------

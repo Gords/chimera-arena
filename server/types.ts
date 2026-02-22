@@ -28,6 +28,7 @@ export interface Player {
   name: string;
   team: Team | null;
   ready: boolean;
+  isBot?: boolean;
 }
 
 // ---- Cards & Abilities ----

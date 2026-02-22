@@ -21,16 +21,26 @@ import { serializeRoom, serializeBattleState } from './Room.js';
 
 const BUILD_PHASE_DURATION = 60; // seconds
 const TURN_TIMER_DURATION = 15; // seconds
+const BOT_ACTION_DELAY_MS = 1200;
 
 // ----- Timers -----
 
 const phaseTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+const botTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
 function clearPhaseTimer(roomId: string): void {
   const timer = phaseTimers.get(roomId);
   if (timer) {
     clearTimeout(timer);
     phaseTimers.delete(roomId);
+  }
+}
+
+function clearBotTimer(roomId: string): void {
+  const timer = botTimers.get(roomId);
+  if (timer) {
+    clearTimeout(timer);
+    botTimers.delete(roomId);
   }
 }
 
@@ -85,6 +95,60 @@ function createFallbackChimera(parts: BuildParts): Chimera {
   };
 }
 
+const BOT_HEADS = [
+  'clockwork wolf skull with ember eyes',
+  'obsidian serpent mask with glowing runes',
+  'mushroom-crowned frog face with golden pupils',
+  'mecha raven beak with crackling sparks',
+  'ice lion helm with crystal fangs',
+] as const;
+
+const BOT_TORSOS = [
+  'brass-plated furnace core with vents',
+  'thorny bark shell with bioluminescent moss',
+  'amethyst crystal chest with pulsing veins',
+  'starlit nebula torso wrapped in chains',
+  'bone-and-iron ribcage with molten seams',
+] as const;
+
+const BOT_ARMS = [
+  'mantis scythes dripping neon venom',
+  'gorilla gauntlets made of meteor rock',
+  'shadow tendrils ending in clawed hands',
+  'clockwork cannons with rotating barrels',
+  'phoenix wings folded into blade feathers',
+] as const;
+
+const BOT_LEGS = [
+  'spider legs with brass joints',
+  'raptor talons that spark on impact',
+  'goat legs wrapped in storm clouds',
+  'hydraulic piston legs with rune engravings',
+  'lizard legs with mirrored obsidian scales',
+] as const;
+
+const BOT_WILD = [
+  'a floating halo of cursed tarot cards',
+  'a tiny thunderstorm trapped in a glass orb',
+  'a backpack reactor leaking blue plasma',
+  'an ancient crown whispering battle chants',
+  'a comet tail of pixelated fireflies',
+] as const;
+
+function pickRandom<T>(values: readonly T[]): T {
+  return values[Math.floor(Math.random() * values.length)];
+}
+
+function makeBotBuildParts(): BuildParts {
+  return {
+    head: pickRandom(BOT_HEADS),
+    torso: pickRandom(BOT_TORSOS),
+    arms: pickRandom(BOT_ARMS),
+    legs: pickRandom(BOT_LEGS),
+    wild: pickRandom(BOT_WILD),
+  };
+}
+
 // ============================================================
 // GameManager
 // ============================================================
@@ -94,6 +158,11 @@ export class GameManager {
 
   constructor(io: Server) {
     this.io = io;
+  }
+
+  clearRoomTimers(roomId: string): void {
+    clearPhaseTimer(roomId);
+    clearBotTimer(roomId);
   }
 
   // ----- Broadcast helper -----
@@ -112,6 +181,119 @@ export class GameManager {
     this.io.to(room.id).emit('battle:state', bs);
   }
 
+  private getBotTeam(room: Room): Team | null {
+    for (const playerId of room.teams.red) {
+      if (room.players.get(playerId)?.isBot) return 'red';
+    }
+    for (const playerId of room.teams.blue) {
+      if (room.players.get(playerId)?.isBot) return 'blue';
+    }
+    return null;
+  }
+
+  private isBotTeam(room: Room, team: Team): boolean {
+    return room.teams[team].some((playerId) => room.players.get(playerId)?.isBot);
+  }
+
+  private ensureBotBuildParts(room: Room): void {
+    const botTeam = this.getBotTeam(room);
+    if (!botTeam) return;
+
+    const slots: BuildSlot[] = ['head', 'torso', 'arms', 'legs', 'wild'];
+    const teamParts = room.buildParts[botTeam];
+    const hasMissingParts = slots.some(
+      (slot) => !teamParts[slot] || !teamParts[slot]?.trim(),
+    );
+
+    if (!hasMissingParts) return;
+
+    const botParts = makeBotBuildParts();
+    for (const slot of slots) {
+      const current = teamParts[slot];
+      if (!current || !current.trim()) {
+        teamParts[slot] = botParts[slot];
+      }
+    }
+  }
+
+  private autoAcceptBotIfNeeded(room: Room): void {
+    const botTeam = this.getBotTeam(room);
+    if (!botTeam || room.phase !== 'reveal' || room.accepted[botTeam]) return;
+
+    room.accepted[botTeam] = true;
+    this.broadcastRoomState(room);
+    this.io.to(room.id).emit('reveal:accepted', { team: botTeam });
+  }
+
+  private chooseBotCardId(room: Room, team: Team): string | null {
+    const bs = room.battleState;
+    if (!bs) return null;
+
+    const chimera = team === 'red' ? room.chimeras.red : room.chimeras.blue;
+    if (!chimera) return null;
+
+    const attacker = team === 'red' ? bs.redChimera : bs.blueChimera;
+    const defender = team === 'red' ? bs.blueChimera : bs.redChimera;
+
+    const playableCards = chimera.cards.filter((card) => {
+      const cd = attacker.cooldowns[card.id] ?? 0;
+      return attacker.mana >= card.manaCost && cd <= 0;
+    });
+    if (playableCards.length === 0) return null;
+
+    const lethal = playableCards
+      .filter((card) => card.damage >= defender.hp)
+      .sort((a, b) => a.manaCost - b.manaCost || b.damage - a.damage);
+    if (lethal.length > 0) return lethal[0].id;
+
+    const lowHp = attacker.hp <= Math.max(25, Math.floor(chimera.stats.maxHp * 0.35));
+    if (lowHp) {
+      const defensive = playableCards
+        .filter((card) => card.healing > 0 || card.shield > 0 || card.effect === 'reflect')
+        .sort(
+          (a, b) =>
+            b.healing + b.shield - (a.healing + a.shield) ||
+            a.manaCost - b.manaCost,
+        );
+      if (defensive.length > 0) return defensive[0].id;
+    }
+
+    const offensive = [...playableCards].sort(
+      (a, b) =>
+        b.damage + (b.type === 'special' ? 8 : 0) -
+        (a.damage + (a.type === 'special' ? 8 : 0)),
+    );
+    return offensive[0].id;
+  }
+
+  private scheduleBotTurn(room: Room): void {
+    clearBotTimer(room.id);
+
+    if (room.phase !== 'battle' || !room.battleState) return;
+    const botTeam = room.battleState.activeTeam;
+    if (!this.isBotTeam(room, botTeam)) return;
+
+    botTimers.set(
+      room.id,
+      setTimeout(() => {
+        botTimers.delete(room.id);
+
+        const bs = room.battleState;
+        if (!bs || room.phase !== 'battle') return;
+        if (bs.activeTeam !== botTeam) return;
+        if (!this.isBotTeam(room, botTeam)) return;
+
+        const cardId = this.chooseBotCardId(room, botTeam);
+        if (cardId) {
+          const played = this.playCard(room, botTeam, cardId);
+          if (played) return;
+        }
+
+        this.endTurn(room, botTeam);
+      }, BOT_ACTION_DELAY_MS),
+    );
+  }
+
   // ============================================================
   // Phase: LOBBY -> BUILD
   // ============================================================
@@ -119,10 +301,13 @@ export class GameManager {
   startGame(room: Room): void {
     if (room.phase !== 'lobby') return;
 
+    clearBotTimer(room.id);
+
     room.phase = 'build';
     room.buildParts = { red: {}, blue: {} };
     room.chimeras = { red: null, blue: null };
     room.accepted = { red: false, blue: false };
+    this.ensureBotBuildParts(room);
 
     this.broadcastRoomState(room);
     this.io.to(room.id).emit('phase:build', {
@@ -172,6 +357,9 @@ export class GameManager {
     if (room.phase !== 'build') return;
 
     clearPhaseTimer(room.id);
+    clearBotTimer(room.id);
+
+    this.ensureBotBuildParts(room);
 
     room.phase = 'reveal';
     room.accepted = { red: false, blue: false };
@@ -213,6 +401,7 @@ export class GameManager {
       red: redChimera,
       blue: blueChimera,
     });
+    this.autoAcceptBotIfNeeded(room);
   }
 
   // ============================================================
@@ -226,6 +415,7 @@ export class GameManager {
 
     this.broadcastRoomState(room);
     this.io.to(room.id).emit('reveal:accepted', { team });
+    this.autoAcceptBotIfNeeded(room);
 
     // If both teams accepted, proceed to battle
     if (room.accepted.red && room.accepted.blue) {
@@ -239,6 +429,8 @@ export class GameManager {
 
   startBattle(room: Room): void {
     if (!room.chimeras.red || !room.chimeras.blue) return;
+
+    clearBotTimer(room.id);
 
     room.phase = 'battle';
 
@@ -258,6 +450,7 @@ export class GameManager {
     this.io.to(room.id).emit('phase:battle', { battleState });
 
     this.startTurnTimer(room);
+    this.scheduleBotTurn(room);
   }
 
   // ============================================================
@@ -271,6 +464,7 @@ export class GameManager {
     const bs = room.battleState;
     if (!bs || room.phase !== 'battle') return false;
     if (bs.activeTeam !== team) return false;
+    clearBotTimer(room.id);
 
     const chimera = team === 'red' ? room.chimeras.red : room.chimeras.blue;
     if (!chimera) return false;
@@ -361,6 +555,7 @@ export class GameManager {
     if (bs.activeTeam !== team) return;
 
     clearPhaseTimer(room.id);
+    clearBotTimer(room.id);
 
     // Tick status effects for the team that just finished
     const active = team === 'red' ? bs.redChimera : bs.blueChimera;
@@ -421,6 +616,7 @@ export class GameManager {
       );
     } else {
       this.startTurnTimer(room);
+      this.scheduleBotTurn(room);
     }
   }
 
@@ -430,6 +626,7 @@ export class GameManager {
 
   endBattle(room: Room, winner: Team): void {
     clearPhaseTimer(room.id);
+    clearBotTimer(room.id);
 
     room.phase = 'result';
 
@@ -448,6 +645,7 @@ export class GameManager {
    * Reset the room for another round (or back to lobby).
    */
   returnToLobby(room: Room): void {
+    clearBotTimer(room.id);
     room.phase = 'lobby';
     room.round += 1;
     room.chimeras = { red: null, blue: null };

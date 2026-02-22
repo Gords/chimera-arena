@@ -40,6 +40,7 @@ interface GameContextValue {
 
   // Actions
   createRoom: (playerName: string) => void;
+  createSoloRoom: (playerName: string) => void;
   joinRoom: (roomCode: string, playerName: string) => void;
   setReady: () => void;
   startGame: () => void;
@@ -212,6 +213,15 @@ export function GameProvider({ children }: GameProviderProps) {
     [socket]
   );
 
+  const createSoloRoom = useCallback(
+    (playerName: string) => {
+      if (!socket) return;
+      setError(null);
+      socket.emit('room:create_solo', { playerName });
+    },
+    [socket]
+  );
+
   const setReady = useCallback(() => {
     if (!socket || !room) return;
     socket.emit('room:ready', { roomId: room.id });
@@ -272,6 +282,7 @@ export function GameProvider({ children }: GameProviderProps) {
     generating,
     error,
     createRoom,
+    createSoloRoom,
     joinRoom,
     setReady,
     startGame,
